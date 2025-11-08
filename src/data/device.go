@@ -1,7 +1,7 @@
 package data
 
 // A device as read from a Store. Mutations are not implicitly persisted
-type StoreDevice struct {
+type StoreEvent struct {
 	Id        string
 	Kind      string
 	Name      string

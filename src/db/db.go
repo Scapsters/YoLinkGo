@@ -2,21 +2,23 @@ package db
 
 import "com/src/data"
 
-type Store interface {
-	DeviceStore
-	EventStore
+type Store struct {
+	devices DeviceStore
+	events EventStore
+}
+
+type GenericStore[T any, S any, F any] interface {
+	Add(item T) error
+	Delete(storeItem S) error
+	Get(filter F) ([]S, error)
 }
 
 type DeviceStore interface {
-	AddDevice(device data.Device) error
-	DeleteDevice(device data.Device) error
-	GetDevices(filter data.DeviceFilter) ([]data.Device, error)
+	GenericStore[data.Device, data.StoreDevice, data.DeviceFilter]
 }
 
 type EventStore interface {
-	AddEvent(event data.Event) error
-	DeleteEvent(event data.Event) error
-	GetEvents(filter data.EventFilter)
+	GenericStore[data.Event, data.StoreEvent, data.EventFilter]
 }
 
 type StoreConnectionStatus int
