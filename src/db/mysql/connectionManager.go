@@ -2,6 +2,7 @@ package mysql
 
 import (
 	"com/src/db"
+	"com/src/connection"
 	"database/sql"
 	"fmt"
 
@@ -10,17 +11,17 @@ import (
 
 const DatabaseName = "yolinktesting"
 
-var _ db.DBConnectionManager = (*MySQLConnectionManager)(nil)
+var _ db.DBConnection = (*MySQLConnection)(nil)
 
-type MySQLConnectionManager struct {
+type MySQLConnection struct {
 	ConnectionString string
 	db               *sql.DB
 }
 
 // connectionString excludes the database name and includes the slash at the end
-func NewMySQLConnectionManager(connectionString string) (*MySQLConnectionManager, error) {
+func NewMySQLConnectionManager(connectionString string) (*MySQLConnection, error) {
 
-	mySQL := &MySQLConnectionManager{ConnectionString: connectionString}
+	mySQL := &MySQLConnection{ConnectionString: connectionString}
 	err := mySQL.Open()
 	if err != nil {
 		return nil, fmt.Errorf("error while connecting to MySQL server: %w", err)
@@ -30,14 +31,14 @@ func NewMySQLConnectionManager(connectionString string) (*MySQLConnectionManager
 		return nil, fmt.Errorf("error while creating database: %w", err)
 	}
 
-	db := &MySQLConnectionManager{ConnectionString: connectionString + DatabaseName}
+	db := &MySQLConnection{ConnectionString: connectionString + DatabaseName}
 	err = db.Open()
 	if err != nil {
 		return nil, fmt.Errorf("error while connecting to database: %w", err)
 	}
 	return db, nil
 }
-func (manager *MySQLConnectionManager) Open() error {
+func (manager *MySQLConnection) Open() error {
 	db, err := sql.Open("mysql", manager.ConnectionString)
 	if err != nil {
 		return fmt.Errorf("error opening to MySQL via connection string %v: %w", manager.ConnectionString, err)
@@ -48,23 +49,23 @@ func (manager *MySQLConnectionManager) Open() error {
 	manager.db = db
 	return nil
 }
-func (manager *MySQLConnectionManager) Close() error {
+func (manager *MySQLConnection) Close() error {
 	err := manager.db.Close()
 	if err != nil {
 		return fmt.Errorf("error while disconnecting from msql db: %w", err)
 	}
 	return nil
 }
-func (manager *MySQLConnectionManager) Status() (db.PingResult, string) {
+func (manager *MySQLConnection) Status() (connection.PingResult, string) {
 	if manager.db == nil {
-		return db.Bad, "db is nil"
+		return connection.Bad, "db is nil"
 	}
 	err := manager.db.Ping()
 	if err != nil {
-		return db.Bad, "error on db ping"
+		return connection.Bad, "error on db ping"
 	}
-	return db.Good, ""
+	return connection.Good, ""
 }
-func (manager *MySQLConnectionManager) DB() *sql.DB {
+func (manager *MySQLConnection) DB() *sql.DB {
 	return manager.db
 }

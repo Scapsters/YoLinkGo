@@ -2,6 +2,7 @@ package db
 
 import (
 	"com/src/data"
+	"com/src/connection"
 	"database/sql"
 )
 
@@ -36,33 +37,11 @@ type EventStore interface {
 	GenericStore[data.Event, data.StoreEvent, data.EventFilter]
 }
 
-type PingResult int
-
-const (
-	Unknown PingResult = iota
-	Good
-	Bad
-)
-
-func (status PingResult) String() string {
-	switch status {
-	case Unknown:
-		return "Unknown"
-	case Good:
-		return "Connected"
-	case Bad:
-		return "Disconnected"
-	}
-	return "Out of range"
+type DB interface {
+	DB() *sql.DB
 }
 
-type DBConnectionManager interface {
-	// No error implies Status will be Good
-	Open() error
-	// No error implies Status will be Bad
-	Close() error
-	// Check the status of the connection with no chance of an error being thrown
-	// string is a description of the result, usually if Bad
-	Status() (PingResult, string)
-	DB() *sql.DB
+type DBConnection interface {
+	connection.Connection
+	DB
 }
