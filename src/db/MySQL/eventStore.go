@@ -29,7 +29,7 @@ func (store *MySQLEventStore) Add(item data.Event) error {
 				field_value
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`,
-		uuidv7.New(), // MySQL does not support uuidv7 and is notably slower
+		uuidv7.New().String(), // MySQL does not support uuidv7 and is notably slower
 		item.RequestDeviceID,
 		item.EventSourceDeviceID,
 		item.ResponseTimestamp,
