@@ -36,32 +36,33 @@ type EventStore interface {
 	GenericStore[data.Event, data.StoreEvent, data.EventFilter]
 }
 
-type StoreConnectionStatus int
+type PingResult int
 
 const (
-	Unknown StoreConnectionStatus = iota
-	Connected
-	Disconnected
+	Unknown PingResult = iota
+	Good
+	Bad
 )
 
-func (status StoreConnectionStatus) String() string {
+func (status PingResult) String() string {
 	switch status {
 	case Unknown:
 		return "Unknown"
-	case Connected:
+	case Good:
 		return "Connected"
-	case Disconnected:
+	case Bad:
 		return "Disconnected"
 	}
 	return "Out of range"
 }
 
 type DBConnectionManager interface {
-	// No error implies connection status is Connected
-	Connect() error
-	// No error implies connection status is Disconnected
-	Disconnect() error
+	// No error implies Status will be Good
+	Open() error
+	// No error implies Status will be Bad
+	Close() error
 	// Check the status of the connection with no chance of an error being thrown
-	Status() StoreConnectionStatus
+	// string is a description of the result, usually if Bad
+	Status() (PingResult, string)
 	DB() *sql.DB
 }

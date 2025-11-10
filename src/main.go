@@ -23,11 +23,15 @@ func run() error {
 	}
 	fmt.Println("Connected successfully")
 	defer func() {
-		if err := dbManager.Disconnect(); err != nil {
-			fmt.Println("Warning: failed to disconnect DB:", err)
+		if err := dbManager.Close(); err != nil {
+			fmt.Println("Warning: failed to close DB:", err)
 		}
 	}()
-	fmt.Printf("Connection Status: %v\n", dbManager.Status().String())
+	connectionStatus, connectionDescription := dbManager.Status()
+	fmt.Printf("Connection Status: %v\n", connectionStatus.String())
+	if connectionDescription != "" {
+		fmt.Printf("Connection Description: %v\n", connectionDescription)
+	}
 
 	stores := db.StoreCollection{
 		Devices: &mysql.MySQLDeviceStore{DB: dbManager.DB()},

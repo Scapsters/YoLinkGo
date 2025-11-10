@@ -21,7 +21,7 @@ type MySQLConnectionManager struct {
 func NewMySQLConnectionManager(connectionString string) (*MySQLConnectionManager, error) {
 
 	mySQL := &MySQLConnectionManager{ConnectionString: connectionString}
-	err := mySQL.Connect()
+	err := mySQL.Open()
 	if err != nil {
 		return nil, fmt.Errorf("error while connecting to MySQL server: %w", err)
 	}
@@ -31,13 +31,13 @@ func NewMySQLConnectionManager(connectionString string) (*MySQLConnectionManager
 	}
 
 	db := &MySQLConnectionManager{ConnectionString: connectionString + DatabaseName}
-	err = db.Connect()
+	err = db.Open()
 	if err != nil {
 		return nil, fmt.Errorf("error while connecting to database: %w", err)
 	}
 	return db, nil
 }
-func (manager *MySQLConnectionManager) Connect() error {
+func (manager *MySQLConnectionManager) Open() error {
 	db, err := sql.Open("mysql", manager.ConnectionString)
 	if err != nil {
 		return fmt.Errorf("error opening to MySQL via connection string %v: %w", manager.ConnectionString, err)
@@ -48,22 +48,22 @@ func (manager *MySQLConnectionManager) Connect() error {
 	manager.db = db
 	return nil
 }
-func (manager *MySQLConnectionManager) Disconnect() error {
+func (manager *MySQLConnectionManager) Close() error {
 	err := manager.db.Close()
 	if err != nil {
 		return fmt.Errorf("error while disconnecting from msql db: %w", err)
 	}
 	return nil
 }
-func (manager *MySQLConnectionManager) Status() db.StoreConnectionStatus {
+func (manager *MySQLConnectionManager) Status() (db.PingResult, string) {
 	if manager.db == nil {
-		return db.Disconnected
+		return db.Bad, "db is nil"
 	}
 	err := manager.db.Ping()
 	if err != nil {
-		return db.Disconnected
+		return db.Bad, "error on db ping"
 	}
-	return db.Connected
+	return db.Good, ""
 }
 func (manager *MySQLConnectionManager) DB() *sql.DB {
 	return manager.db
