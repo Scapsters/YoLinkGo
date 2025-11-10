@@ -39,8 +39,12 @@ func NewYoLinkConnection(userId string, userKey string, accessToken string) (*Yo
 
 func (c YoLinkConnection) Open() error {
 	currentTime := utils.Time()
-	if currentTime > c.tokenExpirationTime {
-		response, err := requests.Post(
+
+	var tokenExpired = currentTime > c.tokenExpirationTime 
+	var response any
+	var err error
+	if tokenExpired {
+		response, err = requests.Post(
 			API_URL,
 			map[string]string{
 				"grant_type":    "refresh_token",
@@ -51,7 +55,22 @@ func (c YoLinkConnection) Open() error {
 		if err != nil {
 			return fmt.Errorf("error refreshing token with refresh token %v: %w", c.refreshToken, err)
 		}
+	} else {
+		response, err = requests.Post(
+			API_URL,
+			map[string]string{
+				"grant_type":    "client_credentials",
+				"client_id":     c.userId,
+				"refresh_token": c.userKey,
+			},
+		)
+		if err != nil {
+			return fmt.Errorf("error refreshing token with refresh token %v: %w", c.refreshToken, err)
+		}
 	}
+
+	fmt.Printf("Response %v", response)
+
 	return nil
 }
 func (c YoLinkConnection) Close() error {
