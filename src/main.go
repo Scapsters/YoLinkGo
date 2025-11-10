@@ -43,9 +43,9 @@ func run() error {
 	}
 
 	err = stores.Devices.Add(data.Device{
-		Kind: "TestKind",
-		Name: "TestName",
-		Token: "TestToken",
+		Kind:      "TestKind",
+		Name:      "TestName",
+		Token:     "TestToken",
 		Timestamp: "TestTimestamp",
 	})
 	if err != nil {

@@ -19,7 +19,7 @@ type MySQLConnectionManager struct {
 
 // connectionString excludes the database name and includes the slash at the end
 func NewMySQLConnectionManager(connectionString string) (*MySQLConnectionManager, error) {
-	
+
 	mySQL := &MySQLConnectionManager{ConnectionString: connectionString}
 	err := mySQL.Connect()
 	if err != nil {
