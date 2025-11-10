@@ -16,6 +16,17 @@ func main() {
 }
 
 func run() error {
+	err := DBTesting()
+	if err != nil {
+		return err
+	}
+
+
+
+	return nil
+}
+
+func DBTesting() error {
 	fmt.Println("Connecting to MySQL, creating DB if neccesary, and connecting to DB...")
 	dbManager, err := mysql.NewMySQLConnectionManager("root:101098@tcp(127.0.0.1:3306)/")
 	if err != nil {
