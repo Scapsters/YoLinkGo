@@ -43,7 +43,7 @@ func (c YoLinkConnection) Open() error {
 	var response map[string]any
 	var err error
 	if tokenExpired {
-		response, err = requests.Post(
+		response, err = requests.PostForm(
 			API_URL,
 			map[string]string{
 				"grant_type":    "refresh_token",
@@ -55,7 +55,10 @@ func (c YoLinkConnection) Open() error {
 			return fmt.Errorf("error refreshing token with refresh token %v: %w", c.refreshToken, err)
 		}
 	} else {
-		response, err = requests.Post(
+		
+		fmt.Println(c.userId)
+		fmt.Println(c.userKey)
+		response, err = requests.PostForm(
 			API_URL,
 			map[string]string{
 				"grant_type":    "client_credentials",
@@ -64,7 +67,7 @@ func (c YoLinkConnection) Open() error {
 			},
 		)
 		if err != nil {
-			return fmt.Errorf("error refreshing token with refresh token %v: %w", c.refreshToken, err)
+			return fmt.Errorf("error generating new access token %v: %w", c.refreshToken, err)
 		}
 	}
 
