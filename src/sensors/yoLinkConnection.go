@@ -36,26 +36,29 @@ func NewYoLinkConnection(userId string, userKey string) (*YoLinkConnection, erro
 	return c, nil
 }
 
-func (c YoLinkConnection) Open() error {
+// Ensure the conncetion to YoLink is active, with 3 main paths of execution:
+// Token is active and far from expiring: no actions taken
+// Token is active but close to expiring: token is refreshed using current token
+// No token exists or token is expired: fetch new token
+func (c *YoLinkConnection) Open() error {
+	type AuthenticationResponse struct {
+		access_token string
+		expires_in int
+	}
 	currentTime := utils.Time()
 
-	var tokenExpired = c.tokenExpirationTime != 0 && currentTime > c.tokenExpirationTime 
-	var response map[string]any
+	var hasToken = c.tokenExpirationTime != 0
+	var isTokenNearlyExpired = hasToken && currentTime > c.tokenExpirationTime - 1000
+	var isTokenExpired = hasToken && currentTime > c.tokenExpirationTime 
+	var response *AuthenticationResponse
 	var err error
-	if tokenExpired {
-		response, err = requests.PostForm(
-			TOKEN_URL,
-			map[string]string{
-				"grant_type":    "refresh_token",
-				"client_id":     c.userId,
-				"refresh_token": c.refreshToken,
-			},
-		)
-		if err != nil {
-			return fmt.Errorf("error refreshing token with refresh token %v: %w", c.refreshToken, err)
-		}
-	} else {
-		response, err = requests.PostForm(
+
+	if hasToken && !isTokenNearlyExpired {
+		return nil
+	}
+
+	if !hasToken || isTokenExpired {
+		response, err = requests.PostForm[AuthenticationResponse](
 			TOKEN_URL,
 			map[string]string{
 				"grant_type":    "client_credentials",
@@ -67,27 +70,38 @@ func (c YoLinkConnection) Open() error {
 			return fmt.Errorf("error generating new access token %v: %w", c.refreshToken, err)
 		}
 	}
-
-	for k, v := range response {
-		fmt.Printf("%v: %v\n", k, v)
+	if isTokenNearlyExpired {
+		response, err = requests.PostForm[AuthenticationResponse](
+			TOKEN_URL,
+			map[string]string{
+				"grant_type":    "refresh_token",
+				"client_id":     c.userId,
+				"refresh_token": c.refreshToken,
+			},
+		)
+		if err != nil {
+			return fmt.Errorf("error refreshing token with refresh token %v: %w", c.refreshToken, err)
+		}
 	}
-
+	
+	c.accessToken = response.access_token
+	c.tokenExpirationTime = utils.TimeSeconds() + int64(response.expires_in)
 	return nil
 }
-func (c YoLinkConnection) Close() error {
+func (c *YoLinkConnection) Close() error {
 	// No need to close connection
 	return nil
 }
-func (c YoLinkConnection) Status() (connection.PingResult, string) {
+func (c *YoLinkConnection) Status() (connection.PingResult, string) {
 	// TODO: implement
 	return connection.Good, ""
 }
 
-func (c YoLinkConnection) createTokens() error {
+func (c *YoLinkConnection) createTokens() error {
 	// TODO: implement
 	return nil
 }
-func (c YoLinkConnection) makeRequest() error {
+func (c *YoLinkConnection) makeRequest() error {
 	// TODO: implement
 	return nil
 }

@@ -32,7 +32,7 @@ func PostJson(url string, body map[string]any) (map[string]any, error) {
 }
 
 // Post form to url. Ensures form encoding, distinct from JSON
-func PostForm(urlString string, body map[string]string) (map[string]any, error) {
+func PostForm[T any](urlString string, body map[string]string) (*T, error) {
 	formValues := url.Values{}
 	for k, val := range body {
 		formValues.Set(k, val)
@@ -46,7 +46,7 @@ func PostForm(urlString string, body map[string]string) (map[string]any, error) 
 	}
 	defer response.Body.Close()
 
-	var out map[string]any
+	var out *T
 	err = json.NewDecoder(response.Body).Decode(&out)
 	if err != nil {
 		return nil, fmt.Errorf("error during decoding of response to request to url %v with body %v and response %v, %w", urlString, body, response, err)
