@@ -37,9 +37,10 @@ func PostForm(urlString string, body map[string]string) (map[string]any, error) 
 	for k, val := range body {
 		formValues.Set(k, val)
 	}
-	bodyReader := strings.NewReader(formValues.Encode())
-	fmt.Print(bodyReader)
-	response, err := http.Post(urlString, "application/x-www-form-urlencoded", bodyReader)
+	response, err := http.Post(
+		urlString, "application/x-www-form-urlencoded",
+		strings.NewReader(formValues.Encode()),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("error during request to url %v with body %v: %w", urlString, body, err)
 	}

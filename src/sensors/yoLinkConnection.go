@@ -44,7 +44,7 @@ func (c YoLinkConnection) Open() error {
 	var err error
 	if tokenExpired {
 		response, err = requests.PostForm(
-			API_URL,
+			TOKEN_URL,
 			map[string]string{
 				"grant_type":    "refresh_token",
 				"client_id":     c.userId,
@@ -59,7 +59,7 @@ func (c YoLinkConnection) Open() error {
 		fmt.Println(c.userId)
 		fmt.Println(c.userKey)
 		response, err = requests.PostForm(
-			API_URL,
+			TOKEN_URL,
 			map[string]string{
 				"grant_type":    "client_credentials",
 				"client_id":     c.userId,
