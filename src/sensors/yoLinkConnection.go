@@ -20,15 +20,14 @@ type YoLinkConnection struct {
 	tokenExpirationTime int64
 }
 
-func NewYoLinkConnection(userId string, userKey string, accessToken string) (*YoLinkConnection, error) {
+func NewYoLinkConnection(userId string, userKey string) (*YoLinkConnection, error) {
 	c := &YoLinkConnection{
 		userId:      userId,
 		userKey:     userKey,
-		accessToken: accessToken,
 	}
 	err := c.Open()
 	if err != nil {
-		return nil, fmt.Errorf("error while creating new YoLink connection: %w", err)
+		return nil, fmt.Errorf("error while opening new YoLink connection: %w", err)
 	}
 	status, description := c.Status()
 	if status != connection.Good {
@@ -40,8 +39,8 @@ func NewYoLinkConnection(userId string, userKey string, accessToken string) (*Yo
 func (c YoLinkConnection) Open() error {
 	currentTime := utils.Time()
 
-	var tokenExpired = currentTime > c.tokenExpirationTime 
-	var response any
+	var tokenExpired = c.tokenExpirationTime != 0 && currentTime > c.tokenExpirationTime 
+	var response map[string]any
 	var err error
 	if tokenExpired {
 		response, err = requests.Post(
@@ -61,7 +60,7 @@ func (c YoLinkConnection) Open() error {
 			map[string]string{
 				"grant_type":    "client_credentials",
 				"client_id":     c.userId,
-				"refresh_token": c.userKey,
+				"client_secret": c.userKey,
 			},
 		)
 		if err != nil {
@@ -69,7 +68,9 @@ func (c YoLinkConnection) Open() error {
 		}
 	}
 
-	fmt.Printf("Response %v", response)
+	for k, v := range response {
+		fmt.Printf("%v: %v\n", k, v)
+	}
 
 	return nil
 }
@@ -82,12 +83,11 @@ func (c YoLinkConnection) Status() (connection.PingResult, string) {
 	return connection.Good, ""
 }
 
-func (c YoLinkConnection) establishAccessToken() error {
-
-}
 func (c YoLinkConnection) createTokens() error {
-
+	// TODO: implement
+	return nil
 }
 func (c YoLinkConnection) makeRequest() error {
-
+	// TODO: implement
+	return nil
 }

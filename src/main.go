@@ -3,25 +3,52 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 
 	"com/src/data"
 	"com/src/db"
 	"com/src/db/mysql"
+	"com/src/sensors"
+
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	err := godotenv.Load("../.env")
+	if err != nil {
+		log.Fatal("fatal:", err)
+	}
 	if err := run(); err != nil {
 		log.Fatal("fatal:", err)
 	}
 }
 
 func run() error {
-	err := DBTesting()
+	// err := DBTesting()
+	// if err != nil {
+	// 	return err
+	// }
+
+	err := YoLinkTesting()
 	if err != nil {
 		return err
 	}
 
+	return nil
+}
 
+func YoLinkTesting() error {
+	uaid := os.Getenv("YOLINK_UAID")
+	secretKey := os.Getenv("YOLINK_SECRET_KEY")
+	yoLinkConnection, err := sensors.NewYoLinkConnection(uaid, secretKey)
+	if err != nil {
+		return fmt.Errorf("error while creating new YoLink connection: %w", err)
+	}
+
+	err = yoLinkConnection.Open()
+	if err != nil {
+		return fmt.Errorf("error while opening new YoLink connection: %w", err)
+	}
 
 	return nil
 }

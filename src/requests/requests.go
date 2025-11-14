@@ -7,7 +7,7 @@ import (
 	"net/http"
 )
 
-func Post(url string, body any) (any, error) {
+func Post(url string, body any) (map[string]any, error) {
 	bodyJson, err := json.Marshal(body)
 	if err != nil {
 		return nil, fmt.Errorf("error while marshalling %v: %w", body, err)
@@ -19,7 +19,7 @@ func Post(url string, body any) (any, error) {
 	}
 	defer resp.Body.Close()
 
-	var out any
+	var out map[string]any
 	err = json.NewDecoder(resp.Body).Decode(&out)
 	if err != nil {
 		return nil, fmt.Errorf("error during decoding of response to request to url %v with body %v and response %v, %w", url, bodyJson, resp, err)
