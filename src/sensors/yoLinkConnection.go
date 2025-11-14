@@ -55,9 +55,6 @@ func (c YoLinkConnection) Open() error {
 			return fmt.Errorf("error refreshing token with refresh token %v: %w", c.refreshToken, err)
 		}
 	} else {
-		
-		fmt.Println(c.userId)
-		fmt.Println(c.userKey)
 		response, err = requests.PostForm(
 			TOKEN_URL,
 			map[string]string{
