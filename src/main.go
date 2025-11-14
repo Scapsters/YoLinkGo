@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"com/src/data"
 	"com/src/db"
@@ -38,8 +39,8 @@ func run() error {
 }
 
 func YoLinkTesting() error {
-	uaid := os.Getenv("YOLINK_UAID")
-	secretKey := os.Getenv("YOLINK_SECRET_KEY")
+	uaid := strings.TrimSpace(os.Getenv("YOLINK_UAID"))
+	secretKey := strings.TrimSpace(os.Getenv("YOLINK_SECRET_KEY"))
 	yoLinkConnection, err := sensors.NewYoLinkConnection(uaid, secretKey)
 	if err != nil {
 		return fmt.Errorf("error while creating new YoLink connection: %w", err)
