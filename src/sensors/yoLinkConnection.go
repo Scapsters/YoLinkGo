@@ -107,3 +107,15 @@ func (c *YoLinkConnection) makeRequest() error {
 	// TODO: implement
 	return nil
 }
+// Refresh the current token. Requires an existing token to exist.
+func (c *YoLinkConnection) refreshCurrentToken() error {
+	var hasToken = c.tokenExpirationTime != 0
+	var isTokenExpired = hasToken && utils.Time() > c.tokenExpirationTime 
+	if !hasToken {
+		return fmt.Errorf("No token currently exists")
+	}
+	if isTokenExpired {
+		return fmt.Errorf("Token is expired, a new one must b")
+	}
+	return nil
+}
