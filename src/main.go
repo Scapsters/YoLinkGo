@@ -46,10 +46,8 @@ func YoLinkTesting() error {
 		return fmt.Errorf("error while creating new YoLink connection: %w", err)
 	}
 
-	err = yoLinkConnection.Open()
-	if err != nil {
-		return fmt.Errorf("error while opening new YoLink connection: %w", err)
-	}
+	status, description := yoLinkConnection.Status()
+	fmt.Printf("YoLink connection status: %v, description: %v", status, description)
 
 	return nil
 }
