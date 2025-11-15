@@ -10,6 +10,8 @@ import (
 const TOKEN_URL = "https://api.yosmart.com/open/yolink/token"
 const API_URL = "https://api.yosmart.com/open/yolink/v2/api"
 
+const TOKEN_REFRESH_BUFFER_MINUTES = 10
+
 var _ connection.Connection = (*YoLinkConnection)(nil)
 
 type YoLinkConnection struct {
@@ -48,7 +50,7 @@ func (c *YoLinkConnection) Open() error {
 	currentTime := utils.Time()
 
 	var hasToken = c.tokenExpirationTime != 0
-	var isTokenNearlyExpired = hasToken && currentTime > c.tokenExpirationTime - 1000
+	var isTokenNearlyExpired = hasToken && currentTime > c.tokenExpirationTime - TOKEN_REFRESH_BUFFER_MINUTES * 60
 	var isTokenExpired = hasToken && currentTime > c.tokenExpirationTime 
 	var response *AuthenticationResponse
 	var err error
