@@ -71,7 +71,6 @@ func (c *YoLinkConnection) Open() error {
 	if isTokenNearlyExpired {
 		
 	}
-	fmt.Println(response)
 	c.accessToken = response.Access_token
 	c.refreshToken = response.Refresh_token
 	c.tokenExpirationTime = utils.TimeSeconds() + int64(response.Expires_in)
