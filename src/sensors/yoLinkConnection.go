@@ -1,9 +1,9 @@
 package sensors
 
 import (
-	"com/src/connection"
-	"com/src/requests"
-	"com/src/util"
+	"com/connection"
+	"com/requests"
+	"com/util"
 	"fmt"
 )
 

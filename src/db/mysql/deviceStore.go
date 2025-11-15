@@ -1,8 +1,8 @@
 package mysql
 
 import (
-	"com/src/data"
-	"com/src/db"
+	"com/data"
+	"com/db"
 	"database/sql"
 	"fmt"
 	"strings"

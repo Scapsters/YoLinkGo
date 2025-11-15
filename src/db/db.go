@@ -1,8 +1,8 @@
 package db
 
 import (
-	"com/src/connection"
-	"com/src/data"
+	"com/connection"
+	"com/data"
 	"database/sql"
 )
 

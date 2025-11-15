@@ -6,10 +6,10 @@ import (
 	"os"
 	"strings"
 
-	"com/src/data"
-	"com/src/db"
-	"com/src/db/mysql"
-	"com/src/sensors"
+	"com/data"
+	"com/db"
+	"com/db/mysql"
+	"com/sensors"
 
 	"github.com/joho/godotenv"
 )
