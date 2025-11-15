@@ -44,6 +44,9 @@ func PostForm[T any](urlString string, body map[string]string) (*T, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error during request to url %v with body %v: %w", urlString, body, err)
 	}
+	if response.StatusCode != 200 {
+		return nil, fmt.Errorf("error during request to url %v with body %v: %v", urlString, body, response.Status)
+	}
 	defer response.Body.Close()
 
 	var out *T
