@@ -85,7 +85,7 @@ func (c *YoLinkConnection) Status() (connection.PingResult, string) {
 	if err != nil {
 		return connection.Bad, err.Error()
 	}
-	return connection.Good, ""
+	return connection.Good, "Successful ping via token refresh"
 }
 func (c *YoLinkConnection) makeRequest() error {
 	// TODO: implement
