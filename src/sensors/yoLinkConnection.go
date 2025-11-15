@@ -87,11 +87,6 @@ func (c *YoLinkConnection) Status() (connection.PingResult, string) {
 	}
 	return connection.Good, ""
 }
-
-func (c *YoLinkConnection) createTokens() error {
-	// TODO: implement
-	return nil
-}
 func (c *YoLinkConnection) makeRequest() error {
 	// TODO: implement
 	return nil
