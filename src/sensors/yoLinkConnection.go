@@ -43,11 +43,6 @@ func NewYoLinkConnection(userId string, userKey string) (*YoLinkConnection, erro
 // Token is active but close to expiring: token is refreshed using current token
 // No token exists or token is expired: fetch new token
 func (c *YoLinkConnection) Open() error {
-	type AuthenticationResponse struct {
-		Access_token string
-		Refresh_token string
-		Expires_in int
-	}
 	currentTime := utils.Time()
 
 	var hasToken = c.tokenExpirationTime != 0
@@ -74,17 +69,7 @@ func (c *YoLinkConnection) Open() error {
 		}
 	}
 	if isTokenNearlyExpired {
-		response, err = requests.PostForm[AuthenticationResponse](
-			TOKEN_URL,
-			map[string]string{
-				"grant_type":    "refresh_token",
-				"client_id":     c.userId,
-				"refresh_token": c.refreshToken,
-			},
-		)
-		if err != nil {
-			return fmt.Errorf("error refreshing token with refresh token %v: %w", c.refreshToken, err)
-		}
+		
 	}
 	fmt.Println(response)
 	c.accessToken = response.Access_token
@@ -97,7 +82,10 @@ func (c *YoLinkConnection) Close() error {
 	return nil
 }
 func (c *YoLinkConnection) Status() (connection.PingResult, string) {
-	// TODO: implement
+	err := c.refreshCurrentToken()
+	if err != nil {
+		return connection.Bad, err.Error()
+	}
 	return connection.Good, ""
 }
 
@@ -111,13 +99,25 @@ func (c *YoLinkConnection) makeRequest() error {
 }
 // Refresh the current token. Requires an existing token to exist.
 func (c *YoLinkConnection) refreshCurrentToken() error {
-	var hasToken = c.tokenExpirationTime != 0
-	var isTokenExpired = hasToken && utils.Time() > c.tokenExpirationTime 
-	if !hasToken {
-		return fmt.Errorf("No token currently exists")
+	response, err := requests.PostForm[AuthenticationResponse](
+		TOKEN_URL,
+		map[string]string{
+			"grant_type":    "refresh_token",
+			"client_id":     c.userId,
+			"refresh_token": c.refreshToken,
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("error refreshing token with refresh token %v: %w", c.refreshToken, err)
 	}
-	if isTokenExpired {
-		return fmt.Errorf("Token is expired, a new one must b")
-	}
+	c.accessToken = response.Access_token
+	c.refreshToken = response.Refresh_token
+	c.tokenExpirationTime = utils.TimeSeconds() + int64(response.Expires_in)
 	return nil
+}
+
+type AuthenticationResponse struct {
+	Access_token string
+	Refresh_token string
+	Expires_in int
 }
