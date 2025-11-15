@@ -44,8 +44,9 @@ func NewYoLinkConnection(userId string, userKey string) (*YoLinkConnection, erro
 // No token exists or token is expired: fetch new token
 func (c *YoLinkConnection) Open() error {
 	type AuthenticationResponse struct {
-		access_token string
-		expires_in int
+		Access_token string
+		Refresh_token string
+		Expires_in int
 	}
 	currentTime := utils.Time()
 
@@ -85,9 +86,10 @@ func (c *YoLinkConnection) Open() error {
 			return fmt.Errorf("error refreshing token with refresh token %v: %w", c.refreshToken, err)
 		}
 	}
-	
-	c.accessToken = response.access_token
-	c.tokenExpirationTime = utils.TimeSeconds() + int64(response.expires_in)
+	fmt.Println(response)
+	c.accessToken = response.Access_token
+	c.refreshToken = response.Refresh_token
+	c.tokenExpirationTime = utils.TimeSeconds() + int64(response.Expires_in)
 	return nil
 }
 func (c *YoLinkConnection) Close() error {
