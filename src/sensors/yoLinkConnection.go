@@ -69,7 +69,7 @@ func (c *YoLinkConnection) Open() error {
 		}
 	}
 	if isTokenNearlyExpired {
-
+		c.refreshCurrentToken()
 	}
 	c.accessToken = response.AccessToken
 	c.refreshToken = response.RefreshToken
