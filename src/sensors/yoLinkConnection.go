@@ -77,7 +77,9 @@ func (c *YoLinkConnection) Open() error {
 	return nil
 }
 func (c *YoLinkConnection) Close() error {
-	// No need to close connection
+	c.accessToken = ""
+	c.refreshToken = ""
+	c.tokenExpirationTime = 0
 	return nil
 }
 func (c *YoLinkConnection) Status() (connection.PingResult, string) {
