@@ -110,7 +110,7 @@ func (c *YoLinkConnection) refreshCurrentToken() error {
 }
 
 func MakeYoLinkRequest[T any](c *YoLinkConnection, simpleBDDP SimpleBDDP) (*T, error) {
-	BDDPMap, err := utils.ToMap(simpleBDDP)
+	BDDPMap, err := utils.ToMap[any](simpleBDDP)
 	if err != nil {
 		return nil, fmt.Errorf("error converting body %v to map: %w", simpleBDDP, err)
 	}
