@@ -9,5 +9,5 @@ func Time() int64 {
 
 // Current time in seconds
 func TimeSeconds() int64 {
-	return time.Now().UTC().UnixMilli() * 1000
+	return time.Now().UTC().UnixMilli() / 1000
 }
