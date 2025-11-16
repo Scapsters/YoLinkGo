@@ -24,8 +24,8 @@ type YoLinkConnection struct {
 
 func NewYoLinkConnection(userId string, userKey string) (*YoLinkConnection, error) {
 	c := &YoLinkConnection{
-		userId:      userId,
-		userKey:     userKey,
+		userId:  userId,
+		userKey: userKey,
 	}
 	err := c.Open()
 	if err != nil {
@@ -46,8 +46,8 @@ func (c *YoLinkConnection) Open() error {
 	currentTime := utils.Time()
 
 	var hasToken = c.tokenExpirationTime != 0
-	var isTokenNearlyExpired = hasToken && currentTime > c.tokenExpirationTime - TOKEN_REFRESH_BUFFER_MINUTES * 60
-	var isTokenExpired = hasToken && currentTime > c.tokenExpirationTime 
+	var isTokenNearlyExpired = hasToken && currentTime > c.tokenExpirationTime-TOKEN_REFRESH_BUFFER_MINUTES*60
+	var isTokenExpired = hasToken && currentTime > c.tokenExpirationTime
 	var response *AuthenticationResponse
 	var err error
 
@@ -69,7 +69,7 @@ func (c *YoLinkConnection) Open() error {
 		}
 	}
 	if isTokenNearlyExpired {
-		
+
 	}
 	c.accessToken = response.AccessToken
 	c.refreshToken = response.RefreshToken
@@ -89,6 +89,7 @@ func (c *YoLinkConnection) Status() (connection.PingResult, string) {
 	}
 	return connection.Good, "Successful ping via token refresh"
 }
+
 // Refresh the current token. Requires an existing token to exist.
 func (c *YoLinkConnection) refreshCurrentToken() error {
 	response, err := requests.PostForm[AuthenticationResponse](
@@ -117,7 +118,7 @@ func MakeYoLinkRequest[T any](c *YoLinkConnection, simpleBDDP SimpleBDDP) (*T, e
 
 	c.Open() // Ensure tokens are up to date
 	headers := map[string]string{
-		"Content-Type": "application/json",
+		"Content-Type":  "application/json",
 		"Authorization": fmt.Sprintf("Bearer %v", c.accessToken),
 	}
 	response, err := requests.PostJson[T](API_URL, headers, BDDPMap)
@@ -125,67 +126,67 @@ func MakeYoLinkRequest[T any](c *YoLinkConnection, simpleBDDP SimpleBDDP) (*T, e
 		return nil, fmt.Errorf("error making request with body %v and headers %v: %w", BDDPMap, headers, err)
 	}
 	return response, nil
-} 
+}
 
 type AuthenticationResponse struct {
-	AccessToken string `json:"access_token"`
+	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
-	ExpiresIn int `json:"expires_in"`
+	ExpiresIn    int    `json:"expires_in"`
 }
 
 type YoLinkMethod string
+
 const (
 	HomeGetDeviceList YoLinkMethod = "Home.getDeviceList"
-	THSensorGetState YoLinkMethod = "THSensor.getState"
+	THSensorGetState  YoLinkMethod = "THSensor.getState"
 )
-
 
 // General request types from https://doc.yosmart.com/docs/protocol/datapacket
 // Basic Download Data Packet (request)
 type BDDP struct {
-    Time         int64                   `json:"time"`                   // Current timestamp, necessary
-    Method       YoLinkMethod            `json:"method"`                 // Method to invoke, necessary
-    MsgID        *string                 `json:"msgid,omitempty"`        // Optional, defaults to timestamp
-    TargetDevice *string                 `json:"targetDevice,omitempty"` // Optional, needed if sending to a device
-    Token        *string                 `json:"token,omitempty"`        // Optional, needed if sending to a device
-    Params       *map[string]any         `json:"params,omitempty"`       // Optional, special methods require
+	Time         int64           `json:"time"`                   // Current timestamp, necessary
+	Method       YoLinkMethod    `json:"method"`                 // Method to invoke, necessary
+	MsgID        *string         `json:"msgid,omitempty"`        // Optional, defaults to timestamp
+	TargetDevice *string         `json:"targetDevice,omitempty"` // Optional, needed if sending to a device
+	Token        *string         `json:"token,omitempty"`        // Optional, needed if sending to a device
+	Params       *map[string]any `json:"params,omitempty"`       // Optional, special methods require
 }
 
 // BDDP from YoLink with timestamp made optional. External usages of BDDP shouldn't need to worry about the timestamp
 type SimpleBDDP struct {
-    Time         *int64                  `json:"time"`                   // Current timestamp, neccesary
-    Method       YoLinkMethod            `json:"method"`                 // Method to invoke, necessary
-    MsgID        *string                 `json:"msgid,omitempty"`        // Optional, defaults to timestamp
-    TargetDevice *string                 `json:"targetDevice,omitempty"` // Optional, needed if sending to a device
-    Token        *string                 `json:"token,omitempty"`        // Optional, needed if sending to a device
-    Params       *map[string]any         `json:"params,omitempty"`       // Optional, special methods require
+	Time         *int64          `json:"time"`                   // Current timestamp, neccesary
+	Method       YoLinkMethod    `json:"method"`                 // Method to invoke, necessary
+	MsgID        *string         `json:"msgid,omitempty"`        // Optional, defaults to timestamp
+	TargetDevice *string         `json:"targetDevice,omitempty"` // Optional, needed if sending to a device
+	Token        *string         `json:"token,omitempty"`        // Optional, needed if sending to a device
+	Params       *map[string]any `json:"params,omitempty"`       // Optional, special methods require
 }
 
 // Basic Uplink Data Packet (response)
 type BUDP struct {
-    Time   int64                   `json:"time"`          // Current timestamp
-    Method YoLinkMethod            `json:"method"`          // Method invoked
-    MsgID  int                     `json:"msgid"`          // Same as request
-    Code   string                  `json:"code"`          // Status code, '000000' = success
-    Desc   *string                 `json:"desc,omitempty"`  // Optional description of status code
-    Data   *map[string]any         `json:"data,omitempty"`  // Optional result data
+	Time   int64           `json:"time"`           // Current timestamp
+	Method YoLinkMethod    `json:"method"`         // Method invoked
+	MsgID  int             `json:"msgid"`          // Same as request
+	Code   string          `json:"code"`           // Status code, '000000' = success
+	Desc   *string         `json:"desc,omitempty"` // Optional description of status code
+	Data   *map[string]any `json:"data,omitempty"` // Optional result data
 }
 
 type TypedBUDP[T any] struct {
-    Time   int64                   `json:"time"`            // Current timestamp
-    Method YoLinkMethod            `json:"method"`          // Method invoked
-    MsgID  int                     `json:"msgid"`           // Same as request
-    Code   string                  `json:"code"`            // Status code, '000000' = success
-    Desc   *string                 `json:"desc,omitempty"`  // Optional description of status code
-    Data   *T                      `json:"data,omitempty"`  // Optional result data
+	Time   int64        `json:"time"`           // Current timestamp
+	Method YoLinkMethod `json:"method"`         // Method invoked
+	MsgID  int          `json:"msgid"`          // Same as request
+	Code   string       `json:"code"`           // Status code, '000000' = success
+	Desc   *string      `json:"desc,omitempty"` // Optional description of status code
+	Data   *T           `json:"data,omitempty"` // Optional result data
 }
 
 type YoLinkDevice struct {
-    DeviceID   string
-    DeviceUUID string
-    Token      string
-    Name       string 
-    Kind       string `json:"type"`
+	DeviceID   string
+	DeviceUUID string
+	Token      string
+	Name       string
+	Kind       string `json:"type"`
 }
 
 type YoLinkDeviceList struct {

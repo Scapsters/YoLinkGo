@@ -1,14 +1,14 @@
 package main
 
 import (
-	"fmt"
-	"log"
-	"os"
-	"strings"
 	"com/data"
 	"com/db"
 	"com/db/mysql"
 	"com/sensors"
+	"fmt"
+	"log"
+	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 )

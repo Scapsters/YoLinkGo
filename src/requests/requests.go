@@ -17,15 +17,15 @@ func PostJson[T any](urlString string, headers map[string]string, body map[strin
 		return nil, fmt.Errorf("error while marshalling %v: %w", body, err)
 	}
 	req, err := http.NewRequest("POST", urlString, bytes.NewBuffer(bodyJson))
-    if err != nil {
-        return nil, fmt.Errorf("error while building request: %w", err)
-    }
-    for k, v := range headers {
-        req.Header.Set(k, v)
-    }
+	if err != nil {
+		return nil, fmt.Errorf("error while building request: %w", err)
+	}
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
 	// Do request
-    client := &http.Client{}
-    response, err := client.Do(req)
+	client := &http.Client{}
+	response, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("error during request to url %v with body %v: %w", urlString, bodyJson, err)
 	}
