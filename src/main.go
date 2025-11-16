@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -88,7 +89,29 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("error while quering device: %w", err)
 	}
-	fmt.Println(deviceState.Data)
+
+	dataMap, err := utils.ToMap[any](deviceState.Data)
+	if err != nil {
+		return fmt.Errorf("error converting data %v: %w", deviceState.Data, err)
+	}
+    eventTimestamp, err := time.Parse(time.RFC3339Nano, dataMap["reportAt"].(string))
+	if err != nil {
+		return fmt.Errorf("error converting time %v to epoch seconds: %w", dataMap["reportedAt"], err)
+	}
+	targetFields := []string{"temperature", "humidity"}
+	for _, fieldName := range targetFields {
+		err := stores.Events.Add(data.Event{
+			EventSourceDeviceID: device.ID,
+			RequestDeviceID: "Unknown",
+			ResponseTimestamp: deviceState.Time,
+			EventTimestamp: eventTimestamp.Unix(),
+			FieldName: fieldName,
+			FieldValue: fmt.Sprint(dataMap["state"].(map[string]any)[fieldName]),
+		})
+		if err != nil {
+			return fmt.Errorf("error while adding event: %w", err)
+		}
+	}
 
 	return nil
 }
