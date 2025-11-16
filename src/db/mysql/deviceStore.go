@@ -19,13 +19,15 @@ func (store *MySQLDeviceStore) Add(item data.Device) error {
 		`
         INSERT INTO devices (
             internal_device_id,
+			device_brand,
             device_type,
             device_name,
             device_token,
             device_timestamp
-        ) VALUES (?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?)
         `,
 		item.ID,
+		item.Brand,
 		item.Kind,
 		item.Name,
 		item.Token, // TODO: token is very yolink specific. device info needs its own denormalized table?
@@ -58,6 +60,10 @@ func (store *MySQLDeviceStore) Get(filter data.DeviceFilter) ([]data.StoreDevice
 		conditions = append(conditions, "internal_device_id = ?")
 		args = append(args, *filter.ID)
 	}
+	if filter.Brand != nil {
+		conditions = append(conditions, "device_brand = ?")
+		args = append(args, *filter.Brand)
+	}
 	if filter.Kind != nil {
 		conditions = append(conditions, "device_type = ?")
 		args = append(args, *filter.Kind)
@@ -83,6 +89,7 @@ func (store *MySQLDeviceStore) Get(filter data.DeviceFilter) ([]data.StoreDevice
 		var device data.StoreDevice
 		err := rows.Scan(
 			&device.ID,
+			&device.Brand,
 			&device.Kind,
 			&device.Name,
 			&device.Token,
@@ -111,6 +118,7 @@ func (store *MySQLDeviceStore) Setup(isDestructive bool) error {
 	_, err := store.DB.Exec(`
         CREATE TABLE IF NOT EXISTS devices (
             internal_device_id 	VARCHAR(40) NOT NULL,
+			device_brand	    VARCHAR(20) NOT NULL,
             device_type 		VARCHAR(45) NOT NULL,
             device_name 		VARCHAR(60) NOT NULL,
             device_token 		VARCHAR(60) NOT NULL,

@@ -2,9 +2,12 @@ package sensors
 
 import (
 	"com/connection"
+	"com/data"
+	"com/db"
 	"com/requests"
 	"com/util"
 	"fmt"
+	"time"
 )
 
 const TOKEN_URL = "https://api.yosmart.com/open/yolink/token"
@@ -12,7 +15,9 @@ const API_URL = "https://api.yosmart.com/open/yolink/v2/api"
 
 const TOKEN_REFRESH_BUFFER_MINUTES = 10
 
-var _ connection.Connection = (*YoLinkConnection)(nil)
+const YOLINK_BRAND_NAME = "yolink"
+
+var _ SensorConnection = (*YoLinkConnection)(nil)
 
 type YoLinkConnection struct {
 	userId              string
@@ -107,6 +112,63 @@ func (c *YoLinkConnection) refreshCurrentToken() error {
 	c.refreshToken = response.RefreshToken
 	c.tokenExpirationTime = utils.TimeSeconds() + int64(response.ExpiresIn)
 	return nil
+}
+// Gets the given devices state by trying to guess the function name based off the sensor type
+func (c *YoLinkConnection) GetDeviceState(device data.StoreDevice) ([]data.Event, error) {
+	// Verify device brand
+	if device.Brand != YOLINK_BRAND_NAME {
+		return nil, fmt.Errorf("GetDeviceState called on YoLinkConnection but given device is of brand %v", device.Brand)
+	}
+	// Make request
+	deviceState, err := MakeYoLinkRequest[BUDP](c, SimpleBDDP{Method: YoLinkMethod(device.Kind + ".getState"), TargetDevice: &device.ID, Token: &device.Token})
+	if deviceState.Code != "000000" {
+		return nil, fmt.Errorf("code was non-zero: %v for device %v (name: %v) at time %v", deviceState.Code, device.ID, device.Name, utils.Time())
+	}
+	if err != nil {
+		return nil, fmt.Errorf("error while quering device: %w", err)
+	}
+	// Process response
+	dataMap, err := utils.ToMap[any](deviceState.Data)
+	if err != nil {
+		return nil, fmt.Errorf("error converting data %v: %w", deviceState.Data, err)
+	}
+	pairs := utils.TraverseMap(dataMap, []utils.KVPair{}, "")
+
+	// Ensure neccesary keys exist
+	var hasReportAt bool
+	for k := range dataMap {
+		if k == "reportAt" {
+			hasReportAt = true
+		}
+	}
+	if !hasReportAt {
+		return nil, fmt.Errorf("reportAt missing for sensor %v (name %v) at time %v", device.ID, device.Name, time.Now())
+	}
+	eventTimestamp, err := time.Parse(time.RFC3339Nano, dataMap["reportAt"].(string))
+	if err != nil {
+		return nil, fmt.Errorf("error converting time %v to epoch seconds: %w", dataMap["reportAt"], err)
+	}
+	// Create events
+	events := []data.Event{}
+	for _, pair := range pairs {
+		events = append(events, data.Event{
+			EventSourceDeviceID: device.ID,
+			RequestDeviceID:     "1",
+			ResponseTimestamp:   deviceState.Time, 
+			EventTimestamp:      eventTimestamp.Unix(),
+			FieldName:           pair.K,
+			FieldValue:          pair.V,
+		})
+	}
+	return events, nil
+}
+func (c *YoLinkConnection) GetManagedDevices(store db.DeviceStore) ([]data.StoreDevice, error) {
+	brand := YOLINK_BRAND_NAME
+	devices, err := store.Get(data.DeviceFilter{Brand: &brand})
+	if err != nil {
+		return nil, fmt.Errorf("error while seraching for devices: %w", err)
+	}
+	return devices, nil
 }
 
 func MakeYoLinkRequest[T any](c *YoLinkConnection, simpleBDDP SimpleBDDP) (*T, error) {

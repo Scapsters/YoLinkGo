@@ -26,20 +26,10 @@ func main() {
 	}
 }
 func run() error {
-	// Connect to DB
-	dbConnection, err := mysql.NewMySQLConnection("root:101098@tcp(127.0.0.1:3306)/")
+	stores, err := connectToStores()
 	if err != nil {
-		return fmt.Errorf("error connecting to DB: %w", err)
+		return fmt.Errorf("error while connecting to stores: %w", err)
 	}
-	defer dbConnection.Close() // ignore error
-	status, description := dbConnection.Status()
-	fmt.Printf("MySQL connection status: %v, description: %v\n", status, description)
-	stores := db.StoreCollection{
-		Devices: &mysql.MySQLDeviceStore{DB: dbConnection.DB()},
-		Events:  &mysql.MySQLEventStore{DB: dbConnection.DB()},
-	}
-	stores.Devices.Setup(true)
-	stores.Events.Setup(true)
 
 	// Connect to YoLink
 	yoLinkConnection, err := sensors.NewYoLinkConnection(
@@ -49,7 +39,7 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("error while creating new YoLink connection: %w", err)
 	}
-	status, description = yoLinkConnection.Status()
+	status, description := yoLinkConnection.Status()
 	fmt.Printf("YoLink connection status: %v, description: %v\n", status, description)
 
 	// Get device List
@@ -63,13 +53,23 @@ func run() error {
 
 	// Store devices
 	for _, device := range result.Data.Devices {
-		stores.Devices.Add(data.Device{
+		err := stores.Devices.Add(data.Device{
+			Brand: 	   sensors.YOLINK_BRAND_NAME,
 			Kind:      device.Kind,
 			Name:      device.Name,
 			Token:     device.Token,
 			ID:        device.DeviceID,
 			Timestamp: utils.TimeSeconds(),
 		})
+		if err != nil {
+			return fmt.Errorf("error adding device %v: %w", device, err)
+		}
+	}
+
+	// Gather data
+	err = gatherAllConnectionSensorData(stores, yoLinkConnection)
+	if err != nil {
+		return fmt.Errorf("error while gathering YoLink sensor data: %w", err)
 	}
 
 	// create a scheduler
@@ -86,7 +86,7 @@ func run() error {
 		gocron.NewTask(
 			func() {
 				fmt.Println("starting")
-				gatherTHData(stores, yoLinkConnection)
+				gatherAllConnectionSensorData(stores, yoLinkConnection)
 			},
 		),
 	)
@@ -112,64 +112,44 @@ func run() error {
 	return nil
 }
 
-func gatherTHData(stores db.StoreCollection, yoLinkConnection *sensors.YoLinkConnection) error {
-	// Query devices
-	kind := "THSensor"
-	devices, err := stores.Devices.Get(data.DeviceFilter{Kind: &kind})
+func gatherAllConnectionSensorData(stores db.StoreCollection, sensorConnection sensors.SensorConnection) error {
+	devices, err := sensorConnection.GetManagedDevices(stores.Devices)
 	if err != nil {
-		return fmt.Errorf("error while seraching for device: %w", err)
+		return fmt.Errorf("error while seraching for devices: %w", err)
 	}
 	if len(devices) == 0 {
-		return fmt.Errorf("device not found")
+		return fmt.Errorf("devices not found")
 	}
 
-	// Make request
 	for _, device := range devices {
-		deviceState, err := sensors.MakeYoLinkRequest[sensors.BUDP](yoLinkConnection, sensors.SimpleBDDP{Method: sensors.THSensorGetState, TargetDevice: &device.ID, Token: &device.Token})
-		if deviceState.Code != "000000" {
-			log.Default().Output(1, fmt.Sprintf("code was non-zero: %v for device %v (name: %v) at time %v", deviceState.Code, device.ID, device.Name, utils.Time()))
-		}
+		events, err := sensorConnection.GetDeviceState(device)
 		if err != nil {
-			return fmt.Errorf("error while quering device: %w", err)
+			log.Default().Output(1, fmt.Sprintf("error getting events from YoLink device %v: %v", device, err))
 		}
-		// Process response
-		dataMap, err := utils.ToMap[any](deviceState.Data)
-		if err != nil {
-			return fmt.Errorf("error converting data %v: %w", deviceState.Data, err)
-		}
-		pairs := utils.TraverseMap(dataMap, []utils.KVPair{}, "")
-		fmt.Println(pairs)
-
-		// Ensure neccesary keys exist
-		var hasReportAt bool
-		for k := range dataMap {
-			if k == "reportAt" {
-				hasReportAt = true
-			}
-		}
-		if !hasReportAt {
-			logger := log.Default()
-			logger.Output(1, fmt.Sprintf("reportAt missing for sensor %v (name %v) at time %v", device.ID, device.Name, time.Now()))
-			continue
-		}
-
-		eventTimestamp, err := time.Parse(time.RFC3339Nano, dataMap["reportAt"].(string))
-		if err != nil {
-			return fmt.Errorf("error converting time %v to epoch seconds: %w", dataMap["reportAt"], err)
-		}
-		for _, pair := range pairs {
-			err := stores.Events.Add(data.Event{
-				EventSourceDeviceID: device.ID,
-				RequestDeviceID:     "1",
-				ResponseTimestamp:   deviceState.Time,
-				EventTimestamp:      eventTimestamp.Unix(),
-				FieldName:           pair.K,
-				FieldValue:          pair.V,
-			})
+		for _, event := range events {
+			err := stores.Events.Add(event)
 			if err != nil {
-				return fmt.Errorf("error while adding event: %w", err)
+				log.Default().Output(1, fmt.Sprintf("error adding event to DB %v: %v", event, err))
 			}
 		}
 	}
 	return nil
+}
+
+func connectToStores() (*db.StoreCollection, error) {
+	// Connect to DB
+	dbConnection, err := mysql.NewMySQLConnection("root:101098@tcp(127.0.0.1:3306)/")
+	if err != nil {
+		return nil, fmt.Errorf("error connecting to DB: %w", err)
+	}
+	defer dbConnection.Close() // ignore error
+	status, description := dbConnection.Status()
+	fmt.Printf("MySQL connection status: %v, description: %v\n", status, description)
+	stores := db.StoreCollection{
+		Devices: &mysql.MySQLDeviceStore{DB: dbConnection.DB()},
+		Events:  &mysql.MySQLEventStore{DB: dbConnection.DB()},
+	}
+	stores.Devices.Setup(true)
+	stores.Events.Setup(true)
+	return &stores, nil
 }
