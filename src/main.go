@@ -68,7 +68,7 @@ func run() error {
 			Name: device.Name,
 			Token: device.Token,
 			ID: device.DeviceID,
-			Timestamp: fmt.Sprintf("%v", utils.TimeSeconds()),
+			Timestamp: utils.TimeSeconds(),
 		})
 	}
 
