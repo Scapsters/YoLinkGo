@@ -65,7 +65,7 @@ func (c *YoLinkConnection) Open() error {
 			},
 		)
 		if err != nil {
-			return fmt.Errorf("error generating new access token %v: %w", c.refreshToken, err)
+			return fmt.Errorf("error generating new access token with user id %v and client secret %v: %w", c.userId, c.userKey, err)
 		}
 	}
 	if isTokenNearlyExpired {
@@ -101,7 +101,7 @@ func (c *YoLinkConnection) refreshCurrentToken() error {
 		},
 	)
 	if err != nil {
-		return fmt.Errorf("error refreshing token with refresh token %v: %w", c.refreshToken, err)
+		return fmt.Errorf("error refreshing token with user id %v and refresh token %v: %w", c.userId, c.refreshToken, err)
 	}
 	c.accessToken = response.AccessToken
 	c.refreshToken = response.RefreshToken

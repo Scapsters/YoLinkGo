@@ -16,54 +16,47 @@ func PostJson[T any](urlString string, headers map[string]string, body map[strin
 	if err != nil {
 		return nil, fmt.Errorf("error while marshalling %v: %w", body, err)
 	}
-	req, err := http.NewRequest("POST", urlString, bytes.NewBuffer(bodyJson))
+	bodyBytes := bytes.NewBuffer(bodyJson)
+	request, err := http.NewRequest("POST", urlString, bodyBytes)
 	if err != nil {
-		return nil, fmt.Errorf("error while building request: %w", err)
+		return nil, fmt.Errorf("error while building request with url %v and body %v: %w", urlString, bodyBytes, err)
 	}
 	for k, v := range headers {
-		req.Header.Set(k, v)
+		request.Header.Set(k, v)
 	}
 	// Do request
 	client := &http.Client{}
-	response, err := client.Do(req)
+	return interpretResponse[T](client.Do(request))
+}
+
+// Post form to url. Ensures form encoding, distinct from JSON
+func PostForm[T any](urlString string, body map[string]string) (*T, error) {
+	// Buld request
+	formValues := url.Values{}
+	for k, val := range body {
+		formValues.Set(k, val)
+	}
+	// Do request
+	return interpretResponse[T](http.Post(
+		urlString, "application/x-www-form-urlencoded",
+		strings.NewReader(formValues.Encode()),
+	))
+}
+
+func interpretResponse[T any](response *http.Response, err error) (*T, error) {
+	// Check statuses
 	if err != nil {
-		return nil, fmt.Errorf("error during request to url %v with body %v: %w", urlString, bodyJson, err)
+		return nil, fmt.Errorf("error during request %v: %w", response, err)
 	}
 	if response.StatusCode != 200 {
-		return nil, fmt.Errorf("error during request to url %v with body %v: %v", urlString, body, response.Status)
+		return nil, fmt.Errorf("error during request %v: %v", response, response.Status)
 	}
 	defer response.Body.Close()
 	// Cast to type
 	var out *T
 	err = json.NewDecoder(response.Body).Decode(&out)
 	if err != nil {
-		return nil, fmt.Errorf("error during decoding of response to request to url %v with body %v and response %v, %w", urlString, bodyJson, response, err)
-	}
-	return out, nil
-}
-
-// Post form to url. Ensures form encoding, distinct from JSON
-func PostForm[T any](urlString string, body map[string]string) (*T, error) {
-	formValues := url.Values{}
-	for k, val := range body {
-		formValues.Set(k, val)
-	}
-	response, err := http.Post(
-		urlString, "application/x-www-form-urlencoded",
-		strings.NewReader(formValues.Encode()),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("error during request to url %v with body %v: %w", urlString, body, err)
-	}
-	if response.StatusCode != 200 {
-		return nil, fmt.Errorf("error during request to url %v with body %v: %v", urlString, body, response.Status)
-	}
-	defer response.Body.Close()
-
-	var out *T
-	err = json.NewDecoder(response.Body).Decode(&out)
-	if err != nil {
-		return nil, fmt.Errorf("error during decoding of response to request to url %v with body %v and response %v, %w", urlString, body, response, err)
+		return nil, fmt.Errorf("error during decoding of response %v, %w", response.Body, err)
 	}
 
 	return out, nil
