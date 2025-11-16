@@ -71,9 +71,9 @@ func (c *YoLinkConnection) Open() error {
 	if isTokenNearlyExpired {
 		
 	}
-	c.accessToken = response.Access_token
-	c.refreshToken = response.Refresh_token
-	c.tokenExpirationTime = utils.TimeSeconds() + int64(response.Expires_in)
+	c.accessToken = response.AccessToken
+	c.refreshToken = response.RefreshToken
+	c.tokenExpirationTime = utils.TimeSeconds() + int64(response.ExpiresIn)
 	return nil
 }
 func (c *YoLinkConnection) Close() error {
@@ -89,10 +89,6 @@ func (c *YoLinkConnection) Status() (connection.PingResult, string) {
 	}
 	return connection.Good, "Successful ping via token refresh"
 }
-func (c *YoLinkConnection) makeRequest() error {
-	// TODO: implement
-	return nil
-}
 // Refresh the current token. Requires an existing token to exist.
 func (c *YoLinkConnection) refreshCurrentToken() error {
 	response, err := requests.PostForm[AuthenticationResponse](
@@ -106,14 +102,92 @@ func (c *YoLinkConnection) refreshCurrentToken() error {
 	if err != nil {
 		return fmt.Errorf("error refreshing token with refresh token %v: %w", c.refreshToken, err)
 	}
-	c.accessToken = response.Access_token
-	c.refreshToken = response.Refresh_token
-	c.tokenExpirationTime = utils.TimeSeconds() + int64(response.Expires_in)
+	c.accessToken = response.AccessToken
+	c.refreshToken = response.RefreshToken
+	c.tokenExpirationTime = utils.TimeSeconds() + int64(response.ExpiresIn)
 	return nil
 }
 
+func MakeYoLinkRequest[T any](c *YoLinkConnection, simpleBDDP SimpleBDDP) (*T, error) {
+	BDDPMap, err := utils.ToMap(simpleBDDP)
+	if err != nil {
+		return nil, fmt.Errorf("error converting body %v to map: %w", simpleBDDP, err)
+	}
+	BDDPMap["time"] = fmt.Sprint(utils.TimeSeconds())
+
+	c.Open() // Ensure tokens are up to date
+	headers := map[string]string{
+		"Content-Type": "application/json",
+		"Authorization": fmt.Sprintf("Bearer %v", c.accessToken),
+	}
+	response, err := requests.PostJson[T](API_URL, headers, BDDPMap)
+	if err != nil {
+		return nil, fmt.Errorf("error making request with body %v and headers %v: %w", BDDPMap, headers, err)
+	}
+	return response, nil
+} 
+
 type AuthenticationResponse struct {
-	Access_token string
-	Refresh_token string
-	Expires_in int
+	AccessToken string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	ExpiresIn int `json:"expires_in"`
+}
+
+type YoLinkMethod string
+const (
+	HomeGetDeviceList YoLinkMethod = "Home.getDeviceList"
+	THSensorGetState YoLinkMethod = "THSensor.getState"
+)
+
+
+// General request types from https://doc.yosmart.com/docs/protocol/datapacket
+// Basic Download Data Packet (request)
+type BDDP struct {
+    Time         int64                   `json:"time"`                   // Current timestamp, necessary
+    Method       YoLinkMethod            `json:"method"`                 // Method to invoke, necessary
+    MsgID        *string                 `json:"msgid,omitempty"`        // Optional, defaults to timestamp
+    TargetDevice *string                 `json:"targetDevice,omitempty"` // Optional, needed if sending to a device
+    Token        *string                 `json:"token,omitempty"`        // Optional, needed if sending to a device
+    Params       *map[string]any         `json:"params,omitempty"`       // Optional, special methods require
+}
+
+// BDDP from YoLink with timestamp made optional. External usages of BDDP shouldn't need to worry about the timestamp
+type SimpleBDDP struct {
+    Time         *int64                  `json:"time"`                   // Current timestamp, neccesary
+    Method       YoLinkMethod            `json:"method"`                 // Method to invoke, necessary
+    MsgID        *string                 `json:"msgid,omitempty"`        // Optional, defaults to timestamp
+    TargetDevice *string                 `json:"targetDevice,omitempty"` // Optional, needed if sending to a device
+    Token        *string                 `json:"token,omitempty"`        // Optional, needed if sending to a device
+    Params       *map[string]any         `json:"params,omitempty"`       // Optional, special methods require
+}
+
+// Basic Uplink Data Packet (response)
+type BUDP struct {
+    Time   int64                   `json:"time"`          // Current timestamp
+    Method YoLinkMethod            `json:"method"`          // Method invoked
+    MsgID  int                     `json:"msgid"`          // Same as request
+    Code   string                  `json:"code"`          // Status code, '000000' = success
+    Desc   *string                 `json:"desc,omitempty"`  // Optional description of status code
+    Data   *map[string]any         `json:"data,omitempty"`  // Optional result data
+}
+
+type TypedBUDP[T any] struct {
+    Time   int64                   `json:"time"`            // Current timestamp
+    Method YoLinkMethod            `json:"method"`          // Method invoked
+    MsgID  int                     `json:"msgid"`           // Same as request
+    Code   string                  `json:"code"`            // Status code, '000000' = success
+    Desc   *string                 `json:"desc,omitempty"`  // Optional description of status code
+    Data   *T                      `json:"data,omitempty"`  // Optional result data
+}
+
+type YoLinkDevice struct {
+    DeviceID   string
+    DeviceUUID string
+    Token      string
+    Name       string 
+    Kind       string `json:"type"`
+}
+
+type YoLinkDeviceList struct {
+	Devices []YoLinkDevice
 }

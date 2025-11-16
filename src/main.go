@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 	"strings"
-
 	"com/data"
 	"com/db"
 	"com/db/mysql"
@@ -47,7 +46,17 @@ func YoLinkTesting() error {
 	}
 
 	status, description := yoLinkConnection.Status()
-	fmt.Printf("YoLink connection status: %v, description: %v", status, description)
+	fmt.Printf("YoLink connection status: %v, description: %v\n", status, description)
+
+	result, err := sensors.MakeYoLinkRequest[sensors.TypedBUDP[sensors.YoLinkDeviceList]](yoLinkConnection, sensors.SimpleBDDP{Method: sensors.HomeGetDeviceList})
+	if err != nil {
+		return fmt.Errorf("error while getting YoLink device list: %w", err)
+	}
+	if result == nil {
+		return fmt.Errorf("YoLink device list null without associated error")
+	}
+
+	fmt.Println(result.Data.Devices)
 
 	return nil
 }
