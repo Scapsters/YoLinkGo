@@ -142,17 +142,7 @@ const (
 )
 
 // General request types from https://doc.yosmart.com/docs/protocol/datapacket
-// Basic Download Data Packet (request)
-type BDDP struct {
-	Time         int64           `json:"time"`                   // Current timestamp, necessary
-	Method       YoLinkMethod    `json:"method"`                 // Method to invoke, necessary
-	MsgID        *string         `json:"msgid,omitempty"`        // Optional, defaults to timestamp
-	TargetDevice *string         `json:"targetDevice,omitempty"` // Optional, needed if sending to a device
-	Token        *string         `json:"token,omitempty"`        // Optional, needed if sending to a device
-	Params       *map[string]any `json:"params,omitempty"`       // Optional, special methods require
-}
-
-// BDDP from YoLink with timestamp made optional. External usages of BDDP shouldn't need to worry about the timestamp
+// BDDP (Basid Data Download Packet) (request) from YoLink with timestamp made optional. External usages of BDDP shouldn't need to worry about the timestamp
 type SimpleBDDP struct {
 	Time         *int64          `json:"time"`                   // Current timestamp, neccesary
 	Method       YoLinkMethod    `json:"method"`                 // Method to invoke, necessary
