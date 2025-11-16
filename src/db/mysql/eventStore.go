@@ -139,9 +139,9 @@ func (store *MySQLEventStore) Setup(isDestructive bool) error {
 
 			request_device_id 		VARCHAR(36) NOT NULL, -- //TODO: what do these two columns mean
 			event_source_device_id 	VARCHAR(36) NOT NULL, -- //TODO: what do these two columns mean
-			response_timestamp 		VARCHAR(45) NOT NULL,
+			response_timestamp 		BIGINT      NOT NULL,
 
-			event_timestamp VARCHAR(45) NOT NULL,
+			event_timestamp BIGINT      NOT NULL,
 			field_name 		VARCHAR(45) NOT NULL,
 			field_value 	VARCHAR(45) NOT NULL,
 

@@ -5,8 +5,8 @@ type StoreEvent struct {
 	ID                  int
 	RequestDeviceID     string
 	EventSourceDeviceID string
-	ResponseTimestamp   string
-	EventTimestamp      string
+	ResponseTimestamp   int64
+	EventTimestamp      int64
 	FieldName           string
 	FieldValue          string
 }
@@ -15,8 +15,8 @@ type StoreEvent struct {
 type Event struct {
 	RequestDeviceID     string
 	EventSourceDeviceID string
-	ResponseTimestamp   string
-	EventTimestamp      string
+	ResponseTimestamp   int64
+	EventTimestamp      int64
 	FieldName           string
 	FieldValue          string
 }
@@ -26,8 +26,8 @@ type EventFilter struct {
 	ID                  *int
 	RequestDeviceID     *string
 	EventSourceDeviceID *string
-	ResponseTimestamp   *string
-	EventTimestamp      *string
+	ResponseTimestamp   *int64
+	EventTimestamp      *int64
 	FieldName           *string
 	FieldValue          *string
 }
@@ -36,8 +36,8 @@ type EventFilter struct {
 type EventEdit struct {
 	RequestDeviceID     *string
 	EventSourceDeviceID *string
-	ResponseTimestamp   *string
-	EventTimestamp      *string
+	ResponseTimestamp   *int64
+	EventTimestamp      *int64
 	FieldName           *string
 	FieldValue          *string
 }
