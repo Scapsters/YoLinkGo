@@ -11,6 +11,7 @@ type StoreDevice struct {
 
 // A device that is not neccesarily associated with a Store object
 type Device struct {
+	ID 		  string
 	Kind      string
 	Name      string
 	Token     string

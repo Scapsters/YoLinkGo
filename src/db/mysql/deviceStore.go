@@ -6,8 +6,6 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
-
-	"github.com/samborkent/uuidv7"
 )
 
 var _ db.DeviceStore = (*MySQLDeviceStore)(nil)
@@ -27,7 +25,7 @@ func (store *MySQLDeviceStore) Add(item data.Device) error {
             device_timestamp
         ) VALUES (?, ?, ?, ?, ?)
         `,
-		uuidv7.New().String(), // MySQL does not support uuidv7 and is notably slower
+		item.ID,
 		item.Kind,
 		item.Name,
 		item.Token, // TODO: token is very yolink specific. device info needs its own denormalized table?

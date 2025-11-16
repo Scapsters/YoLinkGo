@@ -14,12 +14,13 @@ const DatabaseName = "yolinktesting"
 var _ db.DBConnection = (*MySQLConnection)(nil)
 
 type MySQLConnection struct {
+	connection.Connection
 	ConnectionString string
 	db               *sql.DB
 }
 
 // connectionString excludes the database name and includes the slash at the end
-func NewMySQLConnectionManager(connectionString string) (*MySQLConnection, error) {
+func NewMySQLConnection(connectionString string) (*MySQLConnection, error) {
 
 	mySQL := &MySQLConnection{ConnectionString: connectionString}
 	err := mySQL.Open()

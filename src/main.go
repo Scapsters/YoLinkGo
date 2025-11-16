@@ -5,6 +5,7 @@ import (
 	"com/db"
 	"com/db/mysql"
 	"com/sensors"
+	utils "com/util"
 	"fmt"
 	"log"
 	"os"
@@ -24,30 +25,33 @@ func main() {
 }
 
 func run() error {
-	// err := DBTesting()
-	// if err != nil {
-	// 	return err
-	// }
-
-	err := YoLinkTesting()
+	// Connect to DB
+	dbConnection, err := mysql.NewMySQLConnection("root:101098@tcp(127.0.0.1:3306)/")
 	if err != nil {
-		return err
+		return fmt.Errorf("error connecting to DB: %w", err)
 	}
+	defer dbConnection.Close() // ignore error
+	status, description := dbConnection.Status()
+	fmt.Printf("MySQL connection status: %v, description: %v\n", status, description)
+	stores := db.StoreCollection{
+		Devices: &mysql.MySQLDeviceStore{DB: dbConnection.DB()},
+		Events:  &mysql.MySQLEventStore{DB: dbConnection.DB()},
+	}
+	stores.Devices.Setup(true)
+	stores.Events.Setup(true)
 
-	return nil
-}
-
-func YoLinkTesting() error {
-	uaid := strings.TrimSpace(os.Getenv("YOLINK_UAID"))
-	secretKey := strings.TrimSpace(os.Getenv("YOLINK_SECRET_KEY"))
-	yoLinkConnection, err := sensors.NewYoLinkConnection(uaid, secretKey)
+	// Connect to YoLink
+	yoLinkConnection, err := sensors.NewYoLinkConnection(
+		strings.TrimSpace(os.Getenv("YOLINK_UAID")),
+		strings.TrimSpace(os.Getenv("YOLINK_SECRET_KEY")),
+	)
 	if err != nil {
 		return fmt.Errorf("error while creating new YoLink connection: %w", err)
 	}
-
-	status, description := yoLinkConnection.Status()
+	status, description = yoLinkConnection.Status()
 	fmt.Printf("YoLink connection status: %v, description: %v\n", status, description)
 
+	// Get device List
 	result, err := sensors.MakeYoLinkRequest[sensors.TypedBUDP[sensors.YoLinkDeviceList]](yoLinkConnection, sensors.SimpleBDDP{Method: sensors.HomeGetDeviceList})
 	if err != nil {
 		return fmt.Errorf("error while getting YoLink device list: %w", err)
@@ -56,60 +60,35 @@ func YoLinkTesting() error {
 		return fmt.Errorf("YoLink device list null without associated error")
 	}
 
-	fmt.Println(result.Data.Devices)
-
-	return nil
-}
-
-func DBTesting() error {
-	fmt.Println("Connecting to MySQL, creating DB if neccesary, and connecting to DB...")
-	dbManager, err := mysql.NewMySQLConnectionManager("root:101098@tcp(127.0.0.1:3306)/")
-	if err != nil {
-		return fmt.Errorf("error connecting to DB: %w", err)
-	}
-	fmt.Println("Connected successfully")
-	defer func() {
-		if err := dbManager.Close(); err != nil {
-			fmt.Println("Warning: failed to close DB:", err)
-		}
-	}()
-	connectionStatus, connectionDescription := dbManager.Status()
-	fmt.Printf("Connection Status: %v\n", connectionStatus.String())
-	if connectionDescription != "" {
-		fmt.Printf("Connection Description: %v\n", connectionDescription)
+	// Store devices
+	for _, device := range result.Data.Devices {
+		stores.Devices.Add(data.Device{
+			Kind: device.Kind,
+			Name: device.Name,
+			Token: device.Token,
+			ID: device.DeviceID,
+			Timestamp: fmt.Sprintf("%v", utils.TimeSeconds()),
+		})
 	}
 
-	stores := db.StoreCollection{
-		Devices: &mysql.MySQLDeviceStore{DB: dbManager.DB()},
-		Events:  &mysql.MySQLEventStore{DB: dbManager.DB()},
-	}
-	err = stores.Devices.Setup(true)
-	if err != nil {
-		fmt.Print(err)
-	}
-	err = stores.Events.Setup(true)
-	if err != nil {
-		fmt.Print(err)
-	}
-
-	err = stores.Devices.Add(data.Device{
-		Kind:      "TestKind",
-		Name:      "TestName",
-		Token:     "TestToken",
-		Timestamp: "TestTimestamp",
+	// Query device info
+	ID := "d88b4c01000277a9"
+	devices, err := stores.Devices.Get(data.DeviceFilter{
+		ID: &ID,
 	})
 	if err != nil {
-		fmt.Print(err)
+		return fmt.Errorf("error while seraching for device: %w", err)
 	}
+	if len(devices) == 0 {
+		return fmt.Errorf("device not found")
+	}
+	device := devices[0]
 
-	kindSearch := "TestKind"
-	result, err := stores.Devices.Get(data.DeviceFilter{
-		Kind: &kindSearch,
-	})
+	deviceState, err := sensors.MakeYoLinkRequest[sensors.BUDP](yoLinkConnection, sensors.SimpleBDDP{Method: sensors.THSensorGetState, TargetDevice: &device.ID, Token: &device.Token})
 	if err != nil {
-		fmt.Print(err)
+		return fmt.Errorf("error while quering device: %w", err)
 	}
-	fmt.Println(result)
+	fmt.Println(deviceState.Data)
 
 	return nil
 }
