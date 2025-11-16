@@ -137,7 +137,7 @@ func gatherTHData(stores db.StoreCollection, yoLinkConnection *sensors.YoLinkCon
 		if err != nil {
 			return fmt.Errorf("error converting data %v: %w", deviceState.Data, err)
 		}
-		pairs := TraverseMap(dataMap, []KVPair{}, "")
+		pairs := utils.TraverseMap(dataMap, []utils.KVPair{}, "")
 		fmt.Println(pairs)
 
 		// Ensure neccesary keys exist
@@ -163,8 +163,8 @@ func gatherTHData(stores db.StoreCollection, yoLinkConnection *sensors.YoLinkCon
 				RequestDeviceID:     "1",
 				ResponseTimestamp:   deviceState.Time,
 				EventTimestamp:      eventTimestamp.Unix(),
-				FieldName:           pair.k,
-				FieldValue:          pair.v,
+				FieldName:           pair.K,
+				FieldValue:          pair.V,
 			})
 			if err != nil {
 				return fmt.Errorf("error while adding event: %w", err)
@@ -172,26 +172,4 @@ func gatherTHData(stores db.StoreCollection, yoLinkConnection *sensors.YoLinkCon
 		}
 	}
 	return nil
-}
-
-type KVPair struct {
-	k string
-	v string
-}
-
-// Traverse a map m where all keys and nested keys are strings, and values are strings or maps of strings, adding all key value pairs to array a
-// keyPrefix will prefix all keys with the given string. External callers can provide ""
-func TraverseMap(m map[string]any, a []KVPair, keyPrefix string) []KVPair {
-	if keyPrefix != "" {
-		keyPrefix += "."
-	}
-	for k, v := range m {
-		switch v := v.(type) {
-		case map[string]any:
-			a = append(a, TraverseMap(v, []KVPair{}, keyPrefix+k)...)
-		default:
-			a = append(a, KVPair{k: keyPrefix + k, v: fmt.Sprint(v)})
-		}
-	}
-	return a
 }
