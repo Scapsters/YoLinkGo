@@ -1,11 +1,9 @@
 package main
 
 import (
-	"com/data"
 	"com/db"
 	"com/db/mysql"
 	"com/sensors"
-	utils "com/util"
 	"fmt"
 	"log"
 	"os"
