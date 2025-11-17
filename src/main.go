@@ -63,6 +63,7 @@ func run() error {
 }
 
 func storeAllConnectionSensorData(stores *db.StoreCollection, sensorConnection sensors.SensorConnection) error {
+	// Get all devices
 	devices, err := sensorConnection.GetManagedDevices(stores.Devices)
 	if err != nil {
 		return fmt.Errorf("error while seraching for devices: %w", err)
@@ -71,6 +72,7 @@ func storeAllConnectionSensorData(stores *db.StoreCollection, sensorConnection s
 		return fmt.Errorf("devices not found")
 	}
 
+	// Get device data
 	for _, device := range devices {
 		events, err := sensorConnection.GetDeviceState(device)
 		if err != nil {
@@ -93,8 +95,8 @@ func connectToStores() (*db.StoreCollection, error) {
 		return nil, fmt.Errorf("error connecting to DB: %w", err)
 	}
 	defer dbConnection.Close() // ignore error
-	status, description := dbConnection.Status()
-	fmt.Printf("MySQL connection status: %v, description: %v\n", status, description)
+	
+	// Create stores
 	stores := db.StoreCollection{
 		Devices: &mysql.MySQLDeviceStore{DB: dbConnection.DB()},
 		Events:  &mysql.MySQLEventStore{DB: dbConnection.DB()},
