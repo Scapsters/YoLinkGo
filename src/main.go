@@ -26,6 +26,7 @@ func main() {
 	}
 }
 func run() error {
+	// Connect to DB
 	stores, err := connectToStores()
 	if err != nil {
 		return fmt.Errorf("error while connecting to stores: %w", err)
@@ -39,23 +40,23 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("error while creating new YoLink connection: %w", err)
 	}
-
-	storeAllYoLinkDevices(yoLinkConnection, *stores)
-
-	// Gather data
-	err = storeAllConnectionSensorData(stores, yoLinkConnection)
+	err = yoLinkConnection.UpdateManagedDevices(stores.Devices)
 	if err != nil {
-		return fmt.Errorf("error while gathering YoLink sensor data: %w", err)
+		return fmt.Errorf("error while updating YoLink device data: %w", err)
 	}
 
-	// create a scheduler
+	// Store sensor data 
+	err = storeAllConnectionSensorData(stores, yoLinkConnection)
+	if err != nil {
+		return fmt.Errorf("error while storing YoLink sensor data: %w", err)
+	}
+
+	// create and run scheduler
 	s, err := gocron.NewScheduler()
 	if err != nil {
 		return fmt.Errorf("error creating scheduler: %w", err)
 	}
-
-	// add a job to the scheduler
-	j, err := s.NewJob(
+	_, err = s.NewJob(
 		gocron.DurationJob(
 			5*time.Minute,
 		),
@@ -69,17 +70,8 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("error creating job: %w", err)
 	}
-	// each job has a unique id
-	fmt.Println(j.ID())
-
-	// start the scheduler
 	s.Start()
-	fmt.Println(s.JobsWaitingInQueue())
-
-	// block until you are ready to shut down
 	time.Sleep(24 * time.Hour)
-
-	// when you're done, shut it down
 	err = s.Shutdown()
 	if err != nil {
 		return fmt.Errorf("error shutting down: %w", err)
@@ -128,31 +120,4 @@ func connectToStores() (*db.StoreCollection, error) {
 	stores.Devices.Setup(true)
 	stores.Events.Setup(true)
 	return &stores, nil
-}
-
-func storeAllYoLinkDevices(yoLinkConnection *sensors.YoLinkConnection, stores db.StoreCollection) error {
-	// Get device List
-	result, err := sensors.MakeYoLinkRequest[sensors.TypedBUDP[sensors.YoLinkDeviceList]](yoLinkConnection, sensors.SimpleBDDP{Method: sensors.HomeGetDeviceList})
-	if err != nil {
-		return fmt.Errorf("error while getting YoLink device list: %w", err)
-	}
-	if result == nil {
-		return fmt.Errorf("YoLink device list null without associated error")
-	}
-
-	// Store devices
-	for _, device := range result.Data.Devices {
-		err := stores.Devices.Add(data.Device{
-			Brand: 	   sensors.YOLINK_BRAND_NAME,
-			Kind:      device.Kind,
-			Name:      device.Name,
-			Token:     device.Token,
-			ID:        device.DeviceID,
-			Timestamp: utils.TimeSeconds(),
-		})
-		if err != nil {
-			return fmt.Errorf("error adding device %v: %w", device, err)
-		}
-	}
-	return nil
 }

@@ -7,6 +7,7 @@ import (
 	"com/requests"
 	"com/util"
 	"fmt"
+	"log"
 	"time"
 )
 
@@ -113,7 +114,6 @@ func (c *YoLinkConnection) refreshCurrentToken() error {
 	c.tokenExpirationTime = utils.TimeSeconds() + int64(response.ExpiresIn)
 	return nil
 }
-// Gets the given devices state by trying to guess the function name based off the sensor type
 func (c *YoLinkConnection) GetDeviceState(device data.StoreDevice) ([]data.Event, error) {
 	// Verify device brand
 	if device.Brand != YOLINK_BRAND_NAME {
@@ -170,7 +170,6 @@ func (c *YoLinkConnection) GetManagedDevices(store db.DeviceStore) ([]data.Store
 	}
 	return devices, nil
 }
-
 func MakeYoLinkRequest[T any](c *YoLinkConnection, simpleBDDP SimpleBDDP) (*T, error) {
 	BDDPMap, err := utils.ToMap[any](simpleBDDP)
 	if err != nil {
@@ -188,6 +187,45 @@ func MakeYoLinkRequest[T any](c *YoLinkConnection, simpleBDDP SimpleBDDP) (*T, e
 		return nil, fmt.Errorf("error making request with body %v and headers %v: %w", BDDPMap, headers, err)
 	}
 	return response, nil
+}
+func (c *YoLinkConnection) UpdateManagedDevices(store db.DeviceStore) error {
+	// Get device List
+	result, err := MakeYoLinkRequest[TypedBUDP[YoLinkDeviceList]](c, SimpleBDDP{Method: HomeGetDeviceList})
+	if err != nil {
+		return fmt.Errorf("error while getting YoLink device list: %w", err)
+	}
+	if result == nil {
+		return fmt.Errorf("YoLink device list null without associated error")
+	}
+
+	// Store unique devices
+	for _, device := range result.Data.Devices {
+		// Check if device exists
+		existingDevices, err := store.Get(data.DeviceFilter{ID: &device.DeviceID})
+		if err != nil {
+			return fmt.Errorf("error while scanning Devices for device ID %v: %w", device.DeviceID, err)
+		}
+		if len(existingDevices) > 1 {
+			log.Default().Output(1, fmt.Sprintf("Device with ID %v has duplicate entries!", device.DeviceID))
+		}
+		if len(existingDevices) > 0 {
+			continue
+		}
+
+		// Add device otherwise
+		err = store.Add(data.Device{
+			Brand: 	   YOLINK_BRAND_NAME,
+			Kind:      device.Kind,
+			Name:      device.Name,
+			Token:     device.Token,
+			ID:        device.DeviceID,
+			Timestamp: utils.TimeSeconds(),
+		})
+		if err != nil {
+			return fmt.Errorf("error adding device %v: %w", device, err)
+		}
+	}
+	return nil
 }
 
 type AuthenticationResponse struct {
