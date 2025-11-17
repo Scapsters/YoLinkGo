@@ -39,35 +39,11 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("error while creating new YoLink connection: %w", err)
 	}
-	status, description := yoLinkConnection.Status()
-	fmt.Printf("YoLink connection status: %v, description: %v\n", status, description)
 
-	// Get device List
-	result, err := sensors.MakeYoLinkRequest[sensors.TypedBUDP[sensors.YoLinkDeviceList]](yoLinkConnection, sensors.SimpleBDDP{Method: sensors.HomeGetDeviceList})
-	if err != nil {
-		return fmt.Errorf("error while getting YoLink device list: %w", err)
-	}
-	if result == nil {
-		return fmt.Errorf("YoLink device list null without associated error")
-	}
-
-	// Store devices
-	for _, device := range result.Data.Devices {
-		err := stores.Devices.Add(data.Device{
-			Brand: 	   sensors.YOLINK_BRAND_NAME,
-			Kind:      device.Kind,
-			Name:      device.Name,
-			Token:     device.Token,
-			ID:        device.DeviceID,
-			Timestamp: utils.TimeSeconds(),
-		})
-		if err != nil {
-			return fmt.Errorf("error adding device %v: %w", device, err)
-		}
-	}
+	storeAllYoLinkDevices(yoLinkConnection, *stores)
 
 	// Gather data
-	err = gatherAllConnectionSensorData(stores, yoLinkConnection)
+	err = storeAllConnectionSensorData(stores, yoLinkConnection)
 	if err != nil {
 		return fmt.Errorf("error while gathering YoLink sensor data: %w", err)
 	}
@@ -86,7 +62,7 @@ func run() error {
 		gocron.NewTask(
 			func() {
 				fmt.Println("starting")
-				gatherAllConnectionSensorData(stores, yoLinkConnection)
+				storeAllConnectionSensorData(stores, yoLinkConnection)
 			},
 		),
 	)
@@ -112,7 +88,7 @@ func run() error {
 	return nil
 }
 
-func gatherAllConnectionSensorData(stores *db.StoreCollection, sensorConnection sensors.SensorConnection) error {
+func storeAllConnectionSensorData(stores *db.StoreCollection, sensorConnection sensors.SensorConnection) error {
 	devices, err := sensorConnection.GetManagedDevices(stores.Devices)
 	if err != nil {
 		return fmt.Errorf("error while seraching for devices: %w", err)
@@ -152,4 +128,31 @@ func connectToStores() (*db.StoreCollection, error) {
 	stores.Devices.Setup(true)
 	stores.Events.Setup(true)
 	return &stores, nil
+}
+
+func storeAllYoLinkDevices(yoLinkConnection *sensors.YoLinkConnection, stores db.StoreCollection) error {
+	// Get device List
+	result, err := sensors.MakeYoLinkRequest[sensors.TypedBUDP[sensors.YoLinkDeviceList]](yoLinkConnection, sensors.SimpleBDDP{Method: sensors.HomeGetDeviceList})
+	if err != nil {
+		return fmt.Errorf("error while getting YoLink device list: %w", err)
+	}
+	if result == nil {
+		return fmt.Errorf("YoLink device list null without associated error")
+	}
+
+	// Store devices
+	for _, device := range result.Data.Devices {
+		err := stores.Devices.Add(data.Device{
+			Brand: 	   sensors.YOLINK_BRAND_NAME,
+			Kind:      device.Kind,
+			Name:      device.Name,
+			Token:     device.Token,
+			ID:        device.DeviceID,
+			Timestamp: utils.TimeSeconds(),
+		})
+		if err != nil {
+			return fmt.Errorf("error adding device %v: %w", device, err)
+		}
+	}
+	return nil
 }
