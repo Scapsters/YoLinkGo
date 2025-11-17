@@ -46,7 +46,7 @@ func run() error {
 	// Store sensor data 
 	err = storeAllConnectionSensorData(stores, yoLinkConnection)
 	if err != nil {
-		return fmt.Errorf("error while storing YoLink sensor data: %w", err)
+		return fmt.Errorf("error while storing sensor data: %w", err)
 	}
 
 	// Repeat job for 24h. Currently, this function is blocking
@@ -74,12 +74,12 @@ func storeAllConnectionSensorData(stores *db.StoreCollection, sensorConnection s
 	for _, device := range devices {
 		events, err := sensorConnection.GetDeviceState(device)
 		if err != nil {
-			log.Default().Output(1, fmt.Sprintf("error getting events from YoLink device %v: %v", device, err))
+			log.Default().Output(1, fmt.Sprintf("\nerror getting events from device %v: %v\n", device, err))
 		}
 		for _, event := range events {
 			err := stores.Events.Add(event)
 			if err != nil {
-				log.Default().Output(1, fmt.Sprintf("error adding event to DB %v: %v", event, err))
+				log.Default().Output(1, fmt.Sprintf("\nerror adding event to DB %v: %v\n", event, err))
 			}
 		}
 	}
