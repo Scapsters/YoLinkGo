@@ -51,32 +51,14 @@ func run() error {
 		return fmt.Errorf("error while storing YoLink sensor data: %w", err)
 	}
 
-	// create and run scheduler
-	s, err := gocron.NewScheduler()
-	if err != nil {
-		return fmt.Errorf("error creating scheduler: %w", err)
-	}
-	_, err = s.NewJob(
-		gocron.DurationJob(
-			5*time.Minute,
-		),
-		gocron.NewTask(
-			func() {
-				fmt.Println("starting")
-				storeAllConnectionSensorData(stores, yoLinkConnection)
-			},
-		),
+	// Repeat job for 24h. Currently, this function is blocking
+	scheduleJob(
+		func() {
+			fmt.Println("starting")
+			storeAllConnectionSensorData(stores, yoLinkConnection)
+		},
+		5*time.Minute,
 	)
-	if err != nil {
-		return fmt.Errorf("error creating job: %w", err)
-	}
-	s.Start()
-	time.Sleep(24 * time.Hour)
-	err = s.Shutdown()
-	if err != nil {
-		return fmt.Errorf("error shutting down: %w", err)
-	}
-
 	return nil
 }
 
@@ -120,4 +102,22 @@ func connectToStores() (*db.StoreCollection, error) {
 	stores.Devices.Setup(true)
 	stores.Events.Setup(true)
 	return &stores, nil
+}
+
+func scheduleJob(function any, interval time.Duration) error {
+	s, err := gocron.NewScheduler()
+	if err != nil {
+		return fmt.Errorf("error creating scheduler: %w", err)
+	}
+	_, err = s.NewJob(gocron.DurationJob(interval), gocron.NewTask(function))
+	if err != nil {
+		return fmt.Errorf("error creating job: %w", err)
+	}
+	s.Start()
+	time.Sleep(24 * time.Hour)
+	err = s.Shutdown()
+	if err != nil {
+		return fmt.Errorf("error shutting down: %w", err)
+	}
+	return nil
 }
