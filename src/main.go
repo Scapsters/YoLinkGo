@@ -112,7 +112,7 @@ func run() error {
 	return nil
 }
 
-func gatherAllConnectionSensorData(stores db.StoreCollection, sensorConnection sensors.SensorConnection) error {
+func gatherAllConnectionSensorData(stores *db.StoreCollection, sensorConnection sensors.SensorConnection) error {
 	devices, err := sensorConnection.GetManagedDevices(stores.Devices)
 	if err != nil {
 		return fmt.Errorf("error while seraching for devices: %w", err)
