@@ -59,7 +59,8 @@ func (store *MySQLEventStore) Delete(storeItem data.StoreEvent) error {
 	}
 	return nil
 }
-func (store *MySQLEventStore) Get(filter data.EventFilter) ([]data.StoreEvent, error) {
+func (store *MySQLEventStore) Get(filter data.EventFilter) (*data.IterablePaginatedData[data.StoreEvent], error) {
+	// Build conditions
 	args := []any{}
 	conditions := []string{}
 	if filter.ID != nil {
@@ -90,36 +91,49 @@ func (store *MySQLEventStore) Get(filter data.EventFilter) ([]data.StoreEvent, e
 		conditions = append(conditions, "field_value = ?")
 		args = append(args, *filter.EventSourceDeviceID)
 	}
-
 	query := "SELECT * FROM events"
 	if len(conditions) > 0 {
 		query += " WHERE " + strings.Join(conditions, " AND ")
 	}
-	rows, err := store.DB.Query(query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("error querying events with filter %v: %w", filter, err)
-	}
-	defer rows.Close() // ignore error
 
-	var events []data.StoreEvent
-	for rows.Next() {
-		var event data.StoreEvent
-		err := rows.Scan(
-			&event.ID,
-			&event.RequestDeviceID,
-			&event.EventSourceDeviceID,
-			&event.ResponseTimestamp,
-			&event.EventTimestamp,
-			&event.FieldName,
-			&event.FieldValue,
-		)
+	// Add pagination condition
+	if len(conditions) > 0 {
+		query += " AND "
+	} else {
+		query += " WHERE "
+	}
+	query += "event_id > ? ORDER BY event_id LIMIT ?"
+
+	getPage := func (index int) ([]data.StoreEvent, error) {
+
+		rows, err := store.DB.Query(query, append(args, index, data.PAGE_SIZE))
 		if err != nil {
-			return nil, fmt.Errorf("error scanning event: %w", err)
+			return nil, fmt.Errorf("error querying events with filter %v: %w", filter, err)
 		}
-		events = append(events, event)
+		defer rows.Close() // ignore error
+		
+		var events []data.StoreEvent
+		for rows.Next() {
+			var event data.StoreEvent
+			err := rows.Scan(
+				&event.ID,
+				&event.RequestDeviceID,
+				&event.EventSourceDeviceID,
+				&event.ResponseTimestamp,
+				&event.EventTimestamp,
+				&event.FieldName,
+				&event.FieldValue,
+			)
+			if err != nil {
+				return nil, fmt.Errorf("error scanning event: %w", err)
+			}
+			events = append(events, event)
+		}
+			
+		return events, nil
 	}
 
-	return events, nil
+	return &data.IterablePaginatedData[data.StoreEvent]{GetPage: getPage}, nil
 }
 func (store *MySQLEventStore) Setup(isDestructive bool) error {
 	if isDestructive {

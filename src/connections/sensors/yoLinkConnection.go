@@ -113,7 +113,7 @@ func (c *YoLinkConnection) refreshCurrentToken() error {
 	c.tokenExpirationTime = utils.TimeSeconds() + int64(response.ExpiresIn)
 	return nil
 }
-func (c *YoLinkConnection) GetDeviceState(device data.StoreDevice) ([]data.Event, error) {
+func (c *YoLinkConnection) GetDeviceState(device *data.StoreDevice) ([]data.Event, error) {
 	// Verify device brand
 	if device.Brand != YOLINK_BRAND_NAME {
 		return nil, fmt.Errorf("GetDeviceState called on YoLinkConnection but given device is of brand %v", device.Brand)
@@ -161,7 +161,7 @@ func (c *YoLinkConnection) GetDeviceState(device data.StoreDevice) ([]data.Event
 	}
 	return events, nil
 }
-func (c *YoLinkConnection) GetManagedDevices(dbConnection db.DBConnection) ([]data.StoreDevice, error) {
+func (c *YoLinkConnection) GetManagedDevices(dbConnection db.DBConnection) (*data.IterablePaginatedData[data.StoreDevice], error) {
 	brand := YOLINK_BRAND_NAME
 	devices, err := dbConnection.Devices().Get(data.DeviceFilter{Brand: &brand})
 	if err != nil {
@@ -205,10 +205,21 @@ func (c *YoLinkConnection) UpdateManagedDevices(dbConnection db.DBConnection) er
 		if err != nil {
 			return fmt.Errorf("error while scanning Devices for device ID %v: %w", device.DeviceID, err)
 		}
-		if len(existingDevices) > 1 {
+		firstItem, err := existingDevices.Next()
+		if err != nil {
+			return fmt.Errorf("error getting first item: %w", err)
+		}
+		secondItem, err := existingDevices.Next()
+		if err != nil {
+			return fmt.Errorf("error getting second item: %w", err)
+		}
+
+		// Duplicates exist
+		if firstItem != nil && secondItem != nil {
 			log.Default().Output(1, fmt.Sprintf("Device with ID %v has duplicate entries!", device.DeviceID))
 		}
-		if len(existingDevices) > 0 {
+		// Item already exists
+		if firstItem != nil {
 			continue
 		}
 
