@@ -40,11 +40,17 @@ func NewMySQLConnection(connectionString string, isSetupDestructive bool) (*MySQ
 
 	// Create stores
 	devices := MySQLDeviceStore{DB: db.DB()}
-	devices.Setup(isSetupDestructive)
+	err = devices.Setup(isSetupDestructive)
+	if err != nil {
+		return nil, fmt.Errorf("error setting up devices: %w", err)
+	}
 	db.SetDevices(&devices)
 	
 	events := MySQLEventStore{DB: db.DB()}
-	events.Setup(isSetupDestructive)
+	err = events.Setup(isSetupDestructive)
+	if err != nil {
+		return nil, fmt.Errorf("error setting up events: %w", err)
+	}
 	db.SetEvents(&events)
 
 	return db, nil

@@ -108,14 +108,14 @@ func (store *MySQLEventStore) Get(filter data.EventFilter) (*data.IterablePagina
 	}
 	query += "event_id > ? ORDER BY event_id LIMIT ?"
 
-	getPage := func (index int) ([]data.StoreEvent, error) {
+	getPage := func(lastID *string) ([]data.StoreEvent, *string, error) {
 
-		rows, err := store.DB.Query(query, append(args, index, data.PAGE_SIZE))
+		rows, err := store.DB.Query(query, append(args, lastID, data.PAGE_SIZE))
 		if err != nil {
-			return nil, fmt.Errorf("error querying events with filter %v: %w", filter, err)
+			return nil, nil, fmt.Errorf("error querying events with filter %v: %w", filter, err)
 		}
 		defer rows.Close() // ignore error
-		
+
 		var events []data.StoreEvent
 		for rows.Next() {
 			var event data.StoreEvent
@@ -129,12 +129,15 @@ func (store *MySQLEventStore) Get(filter data.EventFilter) (*data.IterablePagina
 				&event.FieldValue,
 			)
 			if err != nil {
-				return nil, fmt.Errorf("error scanning event: %w", err)
+				return nil, nil, fmt.Errorf("error scanning event: %w", err)
 			}
 			events = append(events, event)
 		}
-			
-		return events, nil
+		if len(events) == 0 {
+			return []data.StoreEvent{}, nil, nil
+		}
+		lastEvent := events[len(events)-1]
+		return events, &lastEvent.ID, nil
 	}
 
 	return &data.IterablePaginatedData[data.StoreEvent]{GetPage: getPage}, nil
@@ -168,7 +171,7 @@ func (store *MySQLEventStore) Setup(isDestructive bool) error {
 			INDEX event_source_device_id_idx (event_source_device_id ASC),
 			CONSTRAINT event_source_device_id
 				FOREIGN KEY (event_source_device_id)
-				REFERENCES devices (yolink_device_id)
+				REFERENCES devices (device_id)
 				ON DELETE NO ACTION
 				ON UPDATE NO ACTION
 				

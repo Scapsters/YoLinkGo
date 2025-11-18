@@ -229,7 +229,7 @@ func (c *YoLinkConnection) UpdateManagedDevices(dbConnection db.DBConnection) er
 			Kind:      device.Kind,
 			Name:      device.Name,
 			Token:     device.Token,
-			ID:        device.DeviceID,
+			BrandID:        device.DeviceID,
 			Timestamp: utils.TimeSeconds(),
 		})
 		if err != nil {

@@ -3,14 +3,16 @@ package mysql
 import (
 	"com/connections/db"
 	"com/data"
+	"com/utils"
 	"database/sql"
+	"encoding/csv"
 	"fmt"
 	"log"
-	"strings"
-	"com/utils"
-	"encoding/csv"
 	"os"
+	"strings"
 	"time"
+
+	"github.com/samborkent/uuidv7"
 )
 
 var _ db.DeviceStore = (*MySQLDeviceStore)(nil)
@@ -23,19 +25,21 @@ func (store *MySQLDeviceStore) Add(item data.Device) error {
 	_, err := store.DB.Exec(
 		`
         INSERT INTO devices (
-            yolink_device_id,
+			device_id,
+            brand_device_id,
 			device_brand,
-            device_type,
+            device_kind,
             device_name,
             device_token,
             device_timestamp
-        ) VALUES (?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
         `,
-		item.ID,
+		uuidv7.New().String(), // MySQL does not support uuidv7 and is notably slower
+		item.BrandID,
 		item.Brand,
 		item.Kind,
 		item.Name,
-		item.Token, // TODO: token is very yolink specific. device info needs its own denormalized table?
+		item.Token,
 		item.Timestamp,
 	)
 	if err != nil {
@@ -44,7 +48,7 @@ func (store *MySQLDeviceStore) Add(item data.Device) error {
 	return nil
 }
 func (store *MySQLDeviceStore) Delete(device data.StoreDevice) error {
-	res, err := store.DB.Exec(`DELETE FROM devices WHERE yolink_device_id = ?`, device.ID)
+	res, err := store.DB.Exec(`DELETE FROM devices WHERE brand_device_id = ?`, device.ID)
 	if err != nil {
 		return fmt.Errorf("error deleting device %v: %w", device, err)
 	}
@@ -62,7 +66,11 @@ func (store *MySQLDeviceStore) Get(filter data.DeviceFilter) (*data.IterablePagi
 	args := []any{}
 	conditions := []string{}
 	if filter.ID != nil {
-		conditions = append(conditions, "yolink_device_id = ?")
+		conditions = append(conditions, "device_id = ?")
+		args = append(args, *filter.ID)
+	}
+	if filter.BrandID != nil {
+		conditions = append(conditions, "brand_device_id = ?")
 		args = append(args, *filter.ID)
 	}
 	if filter.Brand != nil {
@@ -70,7 +78,7 @@ func (store *MySQLDeviceStore) Get(filter data.DeviceFilter) (*data.IterablePagi
 		args = append(args, *filter.Brand)
 	}
 	if filter.Kind != nil {
-		conditions = append(conditions, "device_type = ?")
+		conditions = append(conditions, "device_kind = ?")
 		args = append(args, *filter.Kind)
 	}
 	if filter.Name != nil {
@@ -88,12 +96,18 @@ func (store *MySQLDeviceStore) Get(filter data.DeviceFilter) (*data.IterablePagi
 	} else {
 		query += " WHERE "
 	}
-	query += "yolink_device_id > ? ORDER BY yolink_device_id LIMIT ?"
+	query += "device_id > ? ORDER BY device_id LIMIT ?"
 
-	getPage := func (index int) ([]data.StoreDevice, error) {
-		rows, err := store.DB.Query(query, append(args, index, data.PAGE_SIZE))
+	// Gets the next page of results, starting from lastID (non-inclusive) and returns the id to use next call.
+	// On error returns the same id that was given to it
+	getPage := func(lastID *string) ([]data.StoreDevice, *string, error) {
+		var filterID string
+		if lastID != nil {
+			filterID = *lastID
+		}
+		rows, err := store.DB.Query(query, append(args, filterID, data.PAGE_SIZE)...)
 		if err != nil {
-			return nil, fmt.Errorf("error querying devices: %w", err)
+			return nil, lastID, fmt.Errorf("error querying devices: %w", err)
 		}
 		defer rows.Close()
 
@@ -102,6 +116,7 @@ func (store *MySQLDeviceStore) Get(filter data.DeviceFilter) (*data.IterablePagi
 			var device data.StoreDevice
 			err := rows.Scan(
 				&device.ID,
+				&device.BrandID,
 				&device.Brand,
 				&device.Kind,
 				&device.Name,
@@ -109,11 +124,15 @@ func (store *MySQLDeviceStore) Get(filter data.DeviceFilter) (*data.IterablePagi
 				&device.Timestamp,
 			)
 			if err != nil {
-				return nil, fmt.Errorf("error scanning device: %w", err)
+				return nil, lastID, fmt.Errorf("error scanning device: %w", err)
 			}
 			devices = append(devices, device)
 		}
-		return devices, nil
+		if len(devices) == 0 {
+			return []data.StoreDevice{}, nil, nil
+		}
+		lastDevice := devices[len(devices)-1]
+		return devices, &lastDevice.ID, nil
 	}
 
 	return &data.IterablePaginatedData[data.StoreDevice]{GetPage: getPage}, nil
@@ -129,16 +148,17 @@ func (store *MySQLDeviceStore) Setup(isDestructive bool) error {
 		if _, err := store.DB.Exec(`SET FOREIGN_KEY_CHECKS = 1`); err != nil {
 			return fmt.Errorf("error enabling FK checks: %w", err)
 		}
-	}
+	} // TODO: token (and others) is very yolink specific. device info needs its own denormalized table?
 	_, err := store.DB.Exec(`
         CREATE TABLE IF NOT EXISTS devices (
-            yolink_device_id 	VARCHAR(40) NOT NULL,
+			device_id 			VARCHAR(40) NOT NULL,
+            brand_device_id 	VARCHAR(40) NOT NULL,
 			device_brand	    VARCHAR(20) NOT NULL,
-            device_type 		VARCHAR(45) NOT NULL,
+            device_kind 		VARCHAR(45) NOT NULL,
             device_name 		VARCHAR(60) NOT NULL,
-            device_token 		VARCHAR(60) NOT NULL,
+            device_token 		VARCHAR(60) NOT NULL, 
             device_timestamp 	VARCHAR(45) NOT NULL,
-            PRIMARY KEY (yolink_device_id)
+            PRIMARY KEY (device_id)
         ) ENGINE = InnoDB;
     `)
 	if err != nil {
@@ -147,17 +167,18 @@ func (store *MySQLDeviceStore) Setup(isDestructive bool) error {
 	return nil
 }
 func (store *MySQLDeviceStore) Edit(device data.StoreDevice) error {
-	res, err := store.DB.Exec(
-		`
+	res, err := store.DB.Exec(`
         UPDATE devices
         SET
+			brand_device_id  = ?
             device_brand     = ?,
-            device_type      = ?,
+            device_kind      = ?,
             device_name      = ?,
             device_token     = ?,
             device_timestamp = ?
-        WHERE yolink_device_id = ?
+        WHERE device_id = ?
         `,
+		device.BrandID,
 		device.Brand,
 		device.Kind,
 		device.Name,
@@ -202,12 +223,13 @@ func (store *MySQLDeviceStore) Export(filter data.DeviceFilter) error {
 
 	// Write CSV header
 	if err := w.Write([]string{
-		"yolink_id",
-		"brand", // TODO: change device schema to include normal id
-		"type",
-		"name",
-		"token",
-		"timestamp",
+		"internal_device_id",
+		"brand_device_id",
+		"device_brand",
+		"device_type",
+		"device_name",
+		"device_token",
+		"device_timestamp",
 	}); err != nil {
 		return fmt.Errorf("error writing CSV header: %w", err)
 	}
@@ -230,11 +252,12 @@ func (store *MySQLDeviceStore) Export(filter data.DeviceFilter) error {
 
 		err = w.Write([]string{
 			device.ID,
+			device.BrandID,
 			device.Brand,
 			device.Kind,
 			device.Name,
 			device.Token,
-			utils.EpochSecondsToExcelDate(device.Timestamp), // TODO: This isnt right
+			utils.EpochSecondsToExcelDate(device.Timestamp),
 		})
 		if err != nil {
 			log.Default().Output(1, fmt.Sprintf("Error while writing csv row with data %v: %v", device, err))

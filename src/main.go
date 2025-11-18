@@ -25,7 +25,7 @@ func main() {
 }
 func run() error {
 	// Connect to DB
-	dbConnection, err := mysql.NewMySQLConnection("root:101098@tcp(127.0.0.1:3306)/", false)
+	dbConnection, err := mysql.NewMySQLConnection("root:101098@tcp(127.0.0.1:3306)/", true)
 	if err != nil {
 		return fmt.Errorf("error connecting to DB: %w", err)
 	}
@@ -69,22 +69,16 @@ func storeAllConnectionSensorData(dbConnection db.DBConnection, sensorConnection
 	if err != nil {
 		return fmt.Errorf("error while seraching for devices: %w", err)
 	}
-	firstItem, err := devices.Next()
-	if err != nil {
-		return fmt.Errorf("error getting first item: %w", err)
-	}
-	if firstItem == nil {
-		return fmt.Errorf("devices not found")
-	}
 
 	for {
 		device, err := devices.Next()
 		if err != nil {
-			return fmt.Errorf("error getting next time: %w", err)
+			return fmt.Errorf("error getting next item: %w", err)
 		}
 		if device == nil {
 			break
 		}
+		fmt.Printf("device: %v\n", device.Name)
 
 		// Get device data
 		events, err := sensorConnection.GetDeviceState(device)
