@@ -19,7 +19,7 @@ func (store *MySQLDeviceStore) Add(item data.Device) error {
 	_, err := store.DB.Exec(
 		`
         INSERT INTO devices (
-            internal_device_id,
+            yolink_device_id,
 			device_brand,
             device_type,
             device_name,
@@ -40,7 +40,7 @@ func (store *MySQLDeviceStore) Add(item data.Device) error {
 	return nil
 }
 func (store *MySQLDeviceStore) Delete(device data.StoreDevice) error {
-	res, err := store.DB.Exec(`DELETE FROM devices WHERE internal_device_id = ?`, device.ID)
+	res, err := store.DB.Exec(`DELETE FROM devices WHERE yolink_device_id = ?`, device.ID)
 	if err != nil {
 		return fmt.Errorf("error deleting device %v: %w", device, err)
 	}
@@ -58,7 +58,7 @@ func (store *MySQLDeviceStore) Get(filter data.DeviceFilter) ([]data.StoreDevice
 	conditions := []string{}
 
 	if filter.ID != nil {
-		conditions = append(conditions, "internal_device_id = ?")
+		conditions = append(conditions, "yolink_device_id = ?")
 		args = append(args, *filter.ID)
 	}
 	if filter.Brand != nil {
@@ -118,13 +118,13 @@ func (store *MySQLDeviceStore) Setup(isDestructive bool) error {
 	}
 	_, err := store.DB.Exec(`
         CREATE TABLE IF NOT EXISTS devices (
-            internal_device_id 	VARCHAR(40) NOT NULL,
+            yolink_device_id 	VARCHAR(40) NOT NULL,
 			device_brand	    VARCHAR(20) NOT NULL,
             device_type 		VARCHAR(45) NOT NULL,
             device_name 		VARCHAR(60) NOT NULL,
             device_token 		VARCHAR(60) NOT NULL,
             device_timestamp 	VARCHAR(45) NOT NULL,
-            PRIMARY KEY (internal_device_id)
+            PRIMARY KEY (yolink_device_id)
         ) ENGINE = InnoDB;
     `)
 	if err != nil {
@@ -142,7 +142,7 @@ func (store *MySQLDeviceStore) Edit(device data.StoreDevice) error {
             device_name      = ?,
             device_token     = ?,
             device_timestamp = ?
-        WHERE internal_device_id = ?
+        WHERE yolink_device_id = ?
         `,
 		device.Brand,
 		device.Kind,

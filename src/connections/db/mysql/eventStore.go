@@ -1,8 +1,8 @@
 package mysql
 
 import (
-	"com/data"
 	"com/connections/db"
+	"com/data"
 	"database/sql"
 	"fmt"
 	"strings"
@@ -150,7 +150,7 @@ func (store *MySQLEventStore) Setup(isDestructive bool) error {
 			INDEX event_source_device_id_idx (event_source_device_id ASC),
 			CONSTRAINT event_source_device_id
 				FOREIGN KEY (event_source_device_id)
-				REFERENCES devices (internal_device_id)
+				REFERENCES devices (yolink_device_id)
 				ON DELETE NO ACTION
 				ON UPDATE NO ACTION
 				
