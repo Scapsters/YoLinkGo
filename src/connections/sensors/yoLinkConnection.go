@@ -154,7 +154,7 @@ func (c *YoLinkConnection) GetDeviceState(device *data.StoreDevice) ([]data.Even
 			EventSourceDeviceID: device.ID,
 			RequestDeviceID:     "1", //TODO: what does this mean
 			ResponseTimestamp:   deviceState.Time,
-			EventTimestamp:      eventTimestamp.Unix(),
+			EventTimestamp:      eventTimestamp.UnixMilli(),
 			FieldName:           pair.K,
 			FieldValue:          pair.V,
 		})

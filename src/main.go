@@ -4,6 +4,7 @@ import (
 	"com/connections/db"
 	"com/connections/db/mysql"
 	"com/connections/sensors"
+	"com/data"
 	"fmt"
 	"log"
 	"os"
@@ -52,14 +53,23 @@ func run() error {
 	}
 
 	// Repeat job for 24h. Currently, this function is blocking
-	fmt.Println("Scheduling starting...")
-	scheduleJob(
-		func() {
-			fmt.Println("starting")
-			storeAllConnectionSensorData(dbConnection, yoLinkConnection)
-		},
-		5*time.Minute,
-	)
+	// fmt.Println("Scheduling starting...")
+	// scheduleJob(
+	// 	func() {
+	// 		fmt.Println("starting")
+	// 		storeAllConnectionSensorData(dbConnection, yoLinkConnection)
+	// 	},
+	// 	5*time.Minute,
+	// )
+
+	// Export
+	events, err := dbConnection.Events().Get(data.EventFilter{}) 
+	if err != nil {
+		return err
+	}
+	fmt.Println(events.Next())
+	dbConnection.Events().Export(data.EventFilter{})
+
 	return nil
 }
 

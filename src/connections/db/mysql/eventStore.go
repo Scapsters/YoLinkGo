@@ -3,6 +3,7 @@ package mysql
 import (
 	"com/connections/db"
 	"com/data"
+	"com/utils"
 	"database/sql"
 	"encoding/csv"
 	"fmt"
@@ -109,8 +110,11 @@ func (store *MySQLEventStore) Get(filter data.EventFilter) (*data.IterablePagina
 	query += "event_id > ? ORDER BY event_id LIMIT ?"
 
 	getPage := func(lastID *string) ([]data.StoreEvent, *string, error) {
-
-		rows, err := store.DB.Query(query, append(args, lastID, data.PAGE_SIZE))
+		var filterID string
+		if lastID != nil {
+			filterID = *lastID
+		}
+		rows, err := store.DB.Query(query, append(args, filterID, data.PAGE_SIZE)...)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error querying events with filter %v: %w", filter, err)
 		}
@@ -235,8 +239,8 @@ func (store *MySQLEventStore) Export(filter data.EventFilter) error {
 			fmt.Sprint(event.ID),
 			event.RequestDeviceID,
 			event.EventSourceDeviceID,
-			fmt.Sprint(event.ResponseTimestamp),
-			fmt.Sprint(event.EventTimestamp),
+			utils.EpochMillisecondsToExcelDate(event.ResponseTimestamp),
+			utils.EpochMillisecondsToExcelDate(event.EventTimestamp),
 			event.FieldName,
 			event.FieldValue,
 		})

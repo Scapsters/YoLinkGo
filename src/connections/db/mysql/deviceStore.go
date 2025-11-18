@@ -257,7 +257,7 @@ func (store *MySQLDeviceStore) Export(filter data.DeviceFilter) error {
 			device.Kind,
 			device.Name,
 			device.Token,
-			utils.EpochSecondsToExcelDate(device.Timestamp),
+			utils.EpochMillisecondsToExcelDate(device.Timestamp),
 		})
 		if err != nil {
 			log.Default().Output(1, fmt.Sprintf("Error while writing csv row with data %v: %v", device, err))
