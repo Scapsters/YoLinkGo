@@ -131,7 +131,7 @@ func (c *YoLinkConnection) GetDeviceState(device data.StoreDevice) ([]data.Event
 	if err != nil {
 		return nil, fmt.Errorf("error converting data %v: %w", deviceState.Data, err)
 	}
-	pairs := utils.TraverseMap(dataMap, []utils.KVPair{}, "")
+	pairs := utils.FlattenMap(dataMap, []utils.KVPair{}, "")
 
 	// Ensure neccesary keys exist
 	var hasReportAt bool
@@ -153,7 +153,7 @@ func (c *YoLinkConnection) GetDeviceState(device data.StoreDevice) ([]data.Event
 		events = append(events, data.Event{
 			EventSourceDeviceID: device.ID,
 			RequestDeviceID:     "1", //TODO: what does this mean
-			ResponseTimestamp:   deviceState.Time, 
+			ResponseTimestamp:   deviceState.Time,
 			EventTimestamp:      eventTimestamp.Unix(),
 			FieldName:           pair.K,
 			FieldValue:          pair.V,
@@ -214,7 +214,7 @@ func (c *YoLinkConnection) UpdateManagedDevices(dbConnection db.DBConnection) er
 
 		// Add device otherwise
 		err = dbConnection.Devices().Add(data.Device{
-			Brand: 	   YOLINK_BRAND_NAME,
+			Brand:     YOLINK_BRAND_NAME,
 			Kind:      device.Kind,
 			Name:      device.Name,
 			Token:     device.Token,
@@ -227,7 +227,7 @@ func (c *YoLinkConnection) UpdateManagedDevices(dbConnection db.DBConnection) er
 		numDevicesAdded++
 	}
 	fmt.Printf("%v devices added\n", numDevicesAdded)
-	
+
 	return nil
 }
 

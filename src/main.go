@@ -72,13 +72,14 @@ func storeAllConnectionSensorData(dbConnection db.DBConnection, sensorConnection
 	if len(devices) == 0 {
 		return fmt.Errorf("devices not found")
 	}
-
-	// Get device data
+	
 	for _, device := range devices {
+		// Get device data
 		events, err := sensorConnection.GetDeviceState(device)
 		if err != nil {
 			log.Default().Output(1, fmt.Sprintf("\nerror getting events from device %v: %v\n", device, err))
 		}
+		// Store device data
 		for _, event := range events {
 			err := dbConnection.Events().Add(event)
 			if err != nil {
