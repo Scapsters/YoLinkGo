@@ -1,10 +1,11 @@
 package mysql
 
 import (
-	"com/data"
 	"com/connections/db"
+	"com/data"
 	"database/sql"
 	"fmt"
+	"log"
 	"strings"
 )
 
@@ -129,5 +130,39 @@ func (store *MySQLDeviceStore) Setup(isDestructive bool) error {
 	if err != nil {
 		return fmt.Errorf("error creating devices table: %w", err)
 	}
+	return nil
+}
+func (store *MySQLDeviceStore) Edit(device data.StoreDevice) error {
+	res, err := store.DB.Exec(
+		`
+        UPDATE devices
+        SET
+            device_brand     = ?,
+            device_type      = ?,
+            device_name      = ?,
+            device_token     = ?,
+            device_timestamp = ?
+        WHERE internal_device_id = ?
+        `,
+		device.Brand,
+		device.Kind,
+		device.Name,
+		device.Token,
+		device.Timestamp,
+		device.ID,
+	)
+	if err != nil {
+		return fmt.Errorf("error updating device %v: %w", device, err)
+	}
+
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("error checking rows affected for device %v: %w", device, err)
+	}
+	if rows == 0 {
+		log.Default().Output(1, fmt.Sprintf("device %v was not found when attempting to update it", device))
+		return fmt.Errorf("no device updated with ID %v", device.ID)
+	}
+
 	return nil
 }
