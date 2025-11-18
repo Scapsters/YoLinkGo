@@ -4,8 +4,12 @@ import (
 	"com/connections/db"
 	"com/data"
 	"database/sql"
+	"encoding/csv"
 	"fmt"
+	"log"
+	"os"
 	"strings"
+	"time"
 
 	"github.com/samborkent/uuidv7"
 )
@@ -173,5 +177,70 @@ func (store *MySQLEventStore) Setup(isDestructive bool) error {
 	if err != nil {
 		return fmt.Errorf("error creating event table: %w", err)
 	}
+	return nil
+}
+func (store *MySQLEventStore) Export(filter data.EventFilter) error {
+
+	// Ensure exports directory exists
+	if err := os.MkdirAll(db.EXPORT_DIR, 0755); err != nil {
+		return fmt.Errorf("error creating export directory: %w", err)
+	}
+
+	// Generate filename
+	now := time.Now().Format("2006-01-02_15-04-05")
+	filename := fmt.Sprintf("%s/%s_events.csv", db.EXPORT_DIR, now)
+
+	f, err := os.Create(filename)
+	if err != nil {
+		return fmt.Errorf("error creating export file: %w", err)
+	}
+	defer f.Close()
+
+	w := csv.NewWriter(f)
+	defer w.Flush()
+
+	// Write CSV header
+	if err := w.Write([]string{
+		"event_id",
+		"request_device_id",
+		"event_source_device_id",
+		"response_timestamp",
+		"event_timestamp",
+		"field_name",
+		"field_value",
+	}); err != nil {
+		return fmt.Errorf("error writing CSV header: %w", err)
+	}
+
+	// Get data
+	events, err := store.Get(filter)
+	if err != nil {
+		return fmt.Errorf("error getting devices for export with filter %v: %w", filter, err)
+	}
+
+	// Write each row
+	for {
+		event, err := events.Next()
+		if err != nil {
+			log.Default().Output(1, fmt.Sprintf("Error while fetching device while exporting: %v", err))
+		}
+		if event == nil {
+			break
+		}
+
+		err = w.Write([]string{
+			fmt.Sprint(event.ID),
+			event.RequestDeviceID,
+			event.EventSourceDeviceID,
+			fmt.Sprint(event.ResponseTimestamp),
+			fmt.Sprint(event.EventTimestamp),
+			event.FieldName,
+			event.FieldValue,
+		})
+		if err != nil {
+			log.Default().Output(1, fmt.Sprintf("Error while writing csv row with data %v: %v", event, err))
+		}
+	}
+
 	return nil
 }

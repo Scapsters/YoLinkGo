@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"log"
 	"strings"
-	// "com/utils"
-	// "encoding/csv"
-	// "os"
-	// "time"
+	"com/utils"
+	"encoding/csv"
+	"os"
+	"time"
 )
 
 var _ db.DeviceStore = (*MySQLDeviceStore)(nil)
@@ -180,95 +180,66 @@ func (store *MySQLDeviceStore) Edit(device data.StoreDevice) error {
 
 	return nil
 }
-// func (store *MySQLDeviceStore) Export(filter data.DeviceFilter) error {
-// 	args := []any{}
-// 	conditions := []string{}
+func (store *MySQLDeviceStore) Export(filter data.DeviceFilter) error {
 
-// 	if filter.ID != nil {
-// 		conditions = append(conditions, "internal_device_id = ?")
-// 		args = append(args, *filter.ID)
-// 	}
-// 	if filter.Brand != nil {
-// 		conditions = append(conditions, "device_brand = ?")
-// 		args = append(args, *filter.Brand)
-// 	}
-// 	if filter.Kind != nil {
-// 		conditions = append(conditions, "device_type = ?")
-// 		args = append(args, *filter.Kind)
-// 	}
-// 	if filter.Name != nil {
-// 		conditions = append(conditions, "device_name = ?")
-// 		args = append(args, *filter.Name)
-// 	}
+	// Ensure exports directory exists
+	if err := os.MkdirAll(db.EXPORT_DIR, 0755); err != nil {
+		return fmt.Errorf("error creating export directory: %w", err)
+	}
 
-// 	query := "SELECT * FROM devices"
-// 	if len(conditions) > 0 {
-// 		query += " WHERE " + strings.Join(conditions, " AND ")
-// 	}
+	// Generate filename
+	now := time.Now().Format("2006-01-02_15-04-05")
+	filename := fmt.Sprintf("%s/%s_devices.csv", db.EXPORT_DIR, now)
 
-// 	rows, err := store.DB.Query(query, args...)
-// 	if err != nil {
-// 		return fmt.Errorf("error querying devices for export: %w", err)
-// 	}
-// 	defer rows.Close()
+	f, err := os.Create(filename)
+	if err != nil {
+		return fmt.Errorf("error creating export file: %w", err)
+	}
+	defer f.Close()
 
-// 	// Ensure exports directory exists
-// 	if err := os.MkdirAll(db.EXPORT_DIR, 0755); err != nil {
-// 		return fmt.Errorf("error creating export directory: %w", err)
-// 	}
+	w := csv.NewWriter(f)
+	defer w.Flush()
 
-// 	// Generate filename
-// 	now := time.Now().Format("2006-01-02_15-04-05")
-// 	filename := fmt.Sprintf("%s/%s_devices.csv", db.EXPORT_DIR, now)
+	// Write CSV header
+	if err := w.Write([]string{
+		"yolink_id",
+		"brand", // TODO: change device schema to include normal id
+		"type",
+		"name",
+		"token",
+		"timestamp",
+	}); err != nil {
+		return fmt.Errorf("error writing CSV header: %w", err)
+	}
 
-// 	f, err := os.Create(filename)
-// 	if err != nil {
-// 		return fmt.Errorf("error creating export file: %w", err)
-// 	}
-// 	defer f.Close()
+	// Get data
+	devices, err := store.Get(filter)
+	if err != nil {
+		return fmt.Errorf("error getting devices for export with filter %v: %w", filter, err)
+	}
 
-// 	w := csv.NewWriter(f)
-// 	defer w.Flush()
+	// Write each row
+	for {
+		device, err := devices.Next()
+		if err != nil {
+			log.Default().Output(1, fmt.Sprintf("Error while fetching device while exporting: %v", err))
+		}
+		if device == nil {
+			break
+		}
 
-// 	// Write CSV header
-// 	if err := w.Write([]string{
-// 		"id",
-// 		"brand",
-// 		"type",
-// 		"name",
-// 		"token",
-// 		"timestamp",
-// 	}); err != nil {
-// 		return fmt.Errorf("error writing CSV header: %w", err)
-// 	}
+		err = w.Write([]string{
+			device.ID,
+			device.Brand,
+			device.Kind,
+			device.Name,
+			device.Token,
+			utils.EpochSecondsToExcelDate(device.Timestamp), // TODO: This isnt right
+		})
+		if err != nil {
+			log.Default().Output(1, fmt.Sprintf("Error while writing csv row with data %v: %v", device, err))
+		}
+	}
 
-// 	// Write each row
-// 	for rows.Next() {
-// 		var device data.StoreDevice
-// 		err := rows.Scan(
-// 			&device.ID,
-// 			&device.Brand,
-// 			&device.Kind,
-// 			&device.Name,
-// 			&device.Token,
-// 			&device.Timestamp,
-// 		)
-// 		if err != nil {
-// 			return fmt.Errorf("error scanning device: %w", err)
-// 		}
-
-// 		err = w.Write([]string{
-// 			device.ID,
-// 			device.Brand,
-// 			device.Kind,
-// 			device.Name,
-// 			device.Token,
-// 			utils.EpochSecondsToExcelDate(device.Timestamp),
-// 		})
-// 		if err != nil {
-// 			return fmt.Errorf("error writing CSV row: %w", err)
-// 		}
-// 	}
-
-// 	return nil
-// }
+	return nil
+}

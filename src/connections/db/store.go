@@ -16,7 +16,7 @@ type GenericStore[T any, S any, F any] interface {
 	Setup(isDestructive bool) error
 	// Export all rows that match the given filter into a csv file into /exports at the root directory of the project (1 above src).
 	// Names should follow [export date]_[data label].csv
-	// Export(filter F) error 
+	Export(filter F) error 
 }
 
 type EditableStore[T any, S any, F any] interface {

@@ -76,7 +76,6 @@ func storeAllConnectionSensorData(dbConnection db.DBConnection, sensorConnection
 	if firstItem == nil {
 		return fmt.Errorf("devices not found")
 	}
-	
 
 	for {
 		device, err := devices.Next()
