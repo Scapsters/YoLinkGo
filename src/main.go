@@ -52,22 +52,17 @@ func run() error {
 		return fmt.Errorf("error while storing sensor data: %w", err)
 	}
 
-	// Repeat job for 24h. Currently, this function is blocking
-	// fmt.Println("Scheduling starting...")
-	// scheduleJob(
-	// 	func() {
-	// 		fmt.Println("starting")
-	// 		storeAllConnectionSensorData(dbConnection, yoLinkConnection)
-	// 	},
-	// 	5*time.Minute,
-	// )
+	// Repeat job for 72h. Currently, this function is blocking
+	fmt.Println("Scheduling starting...")
+	scheduleJob(
+		func() {
+			fmt.Println("starting")
+			storeAllConnectionSensorData(dbConnection, yoLinkConnection)
+		},
+		15*time.Minute,
+	)
 
 	// Export
-	events, err := dbConnection.Events().Get(data.EventFilter{}) 
-	if err != nil {
-		return err
-	}
-	fmt.Println(events.Next())
 	dbConnection.Events().Export(data.EventFilter{})
 
 	return nil
@@ -116,7 +111,7 @@ func scheduleJob(function any, interval time.Duration) error {
 		return fmt.Errorf("error creating job: %w", err)
 	}
 	s.Start()
-	time.Sleep(24 * time.Hour)
+	time.Sleep(72 * time.Hour)
 	err = s.Shutdown()
 	if err != nil {
 		return fmt.Errorf("error shutting down: %w", err)

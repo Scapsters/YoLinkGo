@@ -239,8 +239,8 @@ func (store *MySQLEventStore) Export(filter data.EventFilter) error {
 			fmt.Sprint(event.ID),
 			event.RequestDeviceID,
 			event.EventSourceDeviceID,
-			utils.EpochMillisecondsToExcelDate(event.ResponseTimestamp),
-			utils.EpochMillisecondsToExcelDate(event.EventTimestamp),
+			utils.EpochSecondsToExcelDate(event.ResponseTimestamp),
+			utils.EpochSecondsToExcelDate(event.EventTimestamp),
 			event.FieldName,
 			event.FieldValue,
 		})

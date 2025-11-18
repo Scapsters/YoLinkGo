@@ -13,7 +13,7 @@ import (
 const TOKEN_URL = "https://api.yosmart.com/open/yolink/token"
 const API_URL = "https://api.yosmart.com/open/yolink/v2/api"
 
-const TOKEN_REFRESH_BUFFER_MINUTES = 10
+const TOKEN_REFRESH_BUFFER_MINUTES = 30
 
 const YOLINK_BRAND_NAME = "yolink"
 
@@ -48,7 +48,7 @@ func NewYoLinkConnection(userId string, userKey string) (*YoLinkConnection, erro
 // Token is active but close to expiring: token is refreshed using current token
 // No token exists or token is expired: fetch new token
 func (c *YoLinkConnection) Open() error {
-	currentTime := utils.Time()
+	currentTime := utils.TimeSeconds()
 
 	var hasToken = c.tokenExpirationTime != 0
 	var isTokenNearlyExpired = hasToken && currentTime > c.tokenExpirationTime-TOKEN_REFRESH_BUFFER_MINUTES*60
@@ -121,7 +121,7 @@ func (c *YoLinkConnection) GetDeviceState(device *data.StoreDevice) ([]data.Even
 	// Make request
 	deviceState, err := MakeYoLinkRequest[BUDP](c, SimpleBDDP{Method: YoLinkMethod(device.Kind + ".getState"), TargetDevice: &device.BrandID, Token: &device.Token})
 	if deviceState.Code != "000000" {
-		return nil, fmt.Errorf("code was non-zero: %v for device %v (name: %v) at time %v", deviceState.Code, device.BrandID, device.Name, utils.Time())
+		return nil, fmt.Errorf("code was non-zero: %v for device %v (name: %v) at time %v", deviceState.Code, device.BrandID, device.Name, utils.TimeSeconds())
 	}
 	if err != nil {
 		return nil, fmt.Errorf("error while quering device: %w", err)
@@ -153,8 +153,8 @@ func (c *YoLinkConnection) GetDeviceState(device *data.StoreDevice) ([]data.Even
 		events = append(events, data.Event{
 			EventSourceDeviceID: device.ID,
 			RequestDeviceID:     "1", //TODO: what does this mean
-			ResponseTimestamp:   deviceState.Time,
-			EventTimestamp:      eventTimestamp.UnixMilli(),
+			ResponseTimestamp:   deviceState.Time / 1000, // Convert to seconds
+			EventTimestamp:      eventTimestamp.Unix(),
 			FieldName:           pair.K,
 			FieldValue:          pair.V,
 		})
@@ -258,7 +258,7 @@ const (
 // General request types from https://doc.yosmart.com/docs/protocol/datapacket
 // BDDP (Basid Data Download Packet) (request) from YoLink with timestamp made optional. External usages of BDDP shouldn't need to worry about the timestamp
 type SimpleBDDP struct {
-	Time         *int64          `json:"time"`                   // Current timestamp, neccesary
+	Time         *int64          `json:"time"`                   // Current timestamp, neccesary, but might not matter
 	Method       YoLinkMethod    `json:"method"`                 // Method to invoke, necessary
 	MsgID        *string         `json:"msgid,omitempty"`        // Optional, defaults to timestamp
 	TargetDevice *string         `json:"targetDevice,omitempty"` // Optional, needed if sending to a device
@@ -268,7 +268,7 @@ type SimpleBDDP struct {
 
 // Basic Uplink Data Packet (response)
 type BUDP struct {
-	Time   int64           `json:"time"`           // Current timestamp
+	Time   int64           `json:"time"`           // Current timestamp in epoch milliseconds
 	Method YoLinkMethod    `json:"method"`         // Method invoked
 	MsgID  int             `json:"msgid"`          // Same as request
 	Code   string          `json:"code"`           // Status code, '000000' = success
@@ -277,7 +277,7 @@ type BUDP struct {
 }
 
 type TypedBUDP[T any] struct {
-	Time   int64        `json:"time"`           // Current timestamp
+	Time   int64        `json:"time"`           // Current timestamp in epoch milliseconds
 	Method YoLinkMethod `json:"method"`         // Method invoked
 	MsgID  int          `json:"msgid"`          // Same as request
 	Code   string       `json:"code"`           // Status code, '000000' = success
