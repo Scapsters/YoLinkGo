@@ -1,9 +1,9 @@
 package main
 
 import (
-	"com/db"
-	"com/db/mysql"
-	"com/sensors"
+	"com/connections/db"
+	"com/connections/db/mysql"
+	"com/connections/sensors"
 	"fmt"
 	"log"
 	"os"

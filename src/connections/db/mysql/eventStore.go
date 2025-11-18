@@ -2,7 +2,7 @@ package mysql
 
 import (
 	"com/data"
-	"com/db"
+	"com/connections/db"
 	"database/sql"
 	"fmt"
 	"strings"

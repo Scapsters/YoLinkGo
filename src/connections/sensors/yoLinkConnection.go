@@ -1,9 +1,9 @@
 package sensors
 
 import (
-	"com/connection"
+	"com/connections"
+	"com/connections/db"
 	"com/data"
-	"com/db"
 	"com/utils"
 	"fmt"
 	"log"
@@ -37,7 +37,7 @@ func NewYoLinkConnection(userId string, userKey string) (*YoLinkConnection, erro
 		return nil, fmt.Errorf("error while opening new YoLink connection: %w", err)
 	}
 	status, description := c.Status()
-	if status != connection.Good {
+	if status != connections.Good {
 		return nil, fmt.Errorf("error while checking status of new YoLink connection. Connection status: %v, connection description: %v", status, description)
 	}
 	return c, nil
@@ -87,12 +87,12 @@ func (c *YoLinkConnection) Close() error {
 	c.tokenExpirationTime = 0
 	return nil
 }
-func (c *YoLinkConnection) Status() (connection.PingResult, string) {
+func (c *YoLinkConnection) Status() (connections.PingResult, string) {
 	err := c.refreshCurrentToken()
 	if err != nil {
-		return connection.Bad, err.Error()
+		return connections.Bad, err.Error()
 	}
-	return connection.Good, "Successful ping via token refresh"
+	return connections.Good, "Successful ping via token refresh"
 }
 
 // Refresh the current token. Requires an existing token to exist.

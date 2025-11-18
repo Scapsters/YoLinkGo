@@ -1,8 +1,8 @@
 package mysql
 
 import (
-	"com/connection"
-	"com/db"
+	"com/connections"
+	"com/connections/db"
 	"database/sql"
 	"fmt"
 
@@ -67,15 +67,15 @@ func (manager *MySQLConnection) Close() error {
 	}
 	return nil
 }
-func (manager *MySQLConnection) Status() (connection.PingResult, string) {
+func (manager *MySQLConnection) Status() (connections.PingResult, string) {
 	if manager.db == nil {
-		return connection.Bad, "db is nil"
+		return connections.Bad, "db is nil"
 	}
 	err := manager.db.Ping()
 	if err != nil {
-		return connection.Bad, "error on db ping"
+		return connections.Bad, "error on db ping"
 	}
-	return connection.Good, ""
+	return connections.Good, ""
 }
 func (manager *MySQLConnection) Devices() db.DeviceStore {
 	return manager.deviceStore

@@ -1,11 +1,11 @@
 package db
 
 import (
-	"com/connection"
+	"com/connections"
 )
 
 type DBConnection interface {
-	connection.Connection
+	connections.Connection
 	Devices() DeviceStore
 	Events() EventStore
 }
