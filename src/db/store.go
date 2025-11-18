@@ -1,14 +1,6 @@
 package db
 
-import (
-	"com/connection"
-	"com/data"
-)
-
-type StoreCollection struct {
-	Devices DeviceStore
-	Events  EventStore
-}
+import "com/data"
 
 // T represents the base type of the store
 // S represents the store object type, which is typically the base type with an id field
@@ -34,10 +26,4 @@ type DeviceStore interface {
 
 type EventStore interface {
 	GenericStore[data.Event, data.StoreEvent, data.EventFilter]
-}
-
-type DBConnection interface {
-	connection.Connection
-	Devices() DeviceStore
-	Events() EventStore
 }

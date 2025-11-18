@@ -4,8 +4,7 @@ import (
 	"com/connection"
 	"com/data"
 	"com/db"
-	"com/requests"
-	"com/util"
+	"com/utils"
 	"fmt"
 	"log"
 	"time"
@@ -62,7 +61,7 @@ func (c *YoLinkConnection) Open() error {
 	}
 
 	if !hasToken || isTokenExpired {
-		response, err = requests.PostForm[AuthenticationResponse](
+		response, err = utils.PostForm[AuthenticationResponse](
 			TOKEN_URL,
 			map[string]string{
 				"grant_type":    "client_credentials",
@@ -98,7 +97,7 @@ func (c *YoLinkConnection) Status() (connection.PingResult, string) {
 
 // Refresh the current token. Requires an existing token to exist.
 func (c *YoLinkConnection) refreshCurrentToken() error {
-	response, err := requests.PostForm[AuthenticationResponse](
+	response, err := utils.PostForm[AuthenticationResponse](
 		TOKEN_URL,
 		map[string]string{
 			"grant_type":    "refresh_token",
@@ -182,7 +181,7 @@ func MakeYoLinkRequest[T any](c *YoLinkConnection, simpleBDDP SimpleBDDP) (*T, e
 		"Content-Type":  "application/json",
 		"Authorization": fmt.Sprintf("Bearer %v", c.accessToken),
 	}
-	response, err := requests.PostJson[T](API_URL, headers, BDDPMap)
+	response, err := utils.PostJson[T](API_URL, headers, BDDPMap)
 	if err != nil {
 		return nil, fmt.Errorf("error making request with body %v and headers %v: %w", BDDPMap, headers, err)
 	}
