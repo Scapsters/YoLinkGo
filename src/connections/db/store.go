@@ -15,9 +15,10 @@ type GenericStore[T any, S any, F any] interface {
 }
 
 // E represents the edit object type, which is typically a partial version of the base type
-type EditableStore[E any] interface {
-	// Edit the item corresponding to id to have the information of item.
-	Edit(id int, item E) error
+type EditableStore[T any, S any, F any, E any] interface {
+	GenericStore[T, S, F]
+	// Edit the item matched by the store item and update it with any values present in E
+	Edit(storeItem S, item E) error
 }
 
 type DeviceStore interface {
