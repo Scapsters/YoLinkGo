@@ -119,9 +119,9 @@ func (c *YoLinkConnection) GetDeviceState(device *data.StoreDevice) ([]data.Even
 		return nil, fmt.Errorf("GetDeviceState called on YoLinkConnection but given device is of brand %v", device.Brand)
 	}
 	// Make request
-	deviceState, err := MakeYoLinkRequest[BUDP](c, SimpleBDDP{Method: YoLinkMethod(device.Kind + ".getState"), TargetDevice: &device.ID, Token: &device.Token})
+	deviceState, err := MakeYoLinkRequest[BUDP](c, SimpleBDDP{Method: YoLinkMethod(device.Kind + ".getState"), TargetDevice: &device.BrandID, Token: &device.Token})
 	if deviceState.Code != "000000" {
-		return nil, fmt.Errorf("code was non-zero: %v for device %v (name: %v) at time %v", deviceState.Code, device.ID, device.Name, utils.Time())
+		return nil, fmt.Errorf("code was non-zero: %v for device %v (name: %v) at time %v", deviceState.Code, device.BrandID, device.Name, utils.Time())
 	}
 	if err != nil {
 		return nil, fmt.Errorf("error while quering device: %w", err)
