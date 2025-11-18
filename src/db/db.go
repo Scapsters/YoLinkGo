@@ -3,7 +3,6 @@ package db
 import (
 	"com/connection"
 	"com/data"
-	"database/sql"
 )
 
 type StoreCollection struct {
@@ -37,11 +36,8 @@ type EventStore interface {
 	GenericStore[data.Event, data.StoreEvent, data.EventFilter]
 }
 
-type DB interface {
-	DB() *sql.DB
-}
-
 type DBConnection interface {
 	connection.Connection
-	DB
+	Devices() DeviceStore
+	Events() EventStore
 }

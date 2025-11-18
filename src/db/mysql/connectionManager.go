@@ -14,15 +14,15 @@ const DatabaseName = "yolinktesting"
 var _ db.DBConnection = (*MySQLConnection)(nil)
 
 type MySQLConnection struct {
-	connection.Connection
-	ConnectionString string
+	connectionString string
+	eventStore db.EventStore
+	deviceStore db.DeviceStore
 	db               *sql.DB
 }
 
 // connectionString excludes the database name and includes the slash at the end
-func NewMySQLConnection(connectionString string) (*MySQLConnection, error) {
-
-	mySQL := &MySQLConnection{ConnectionString: connectionString}
+func NewMySQLConnection(connectionString string, isSetupDestructive bool) (*MySQLConnection, error) {
+	mySQL := &MySQLConnection{connectionString: connectionString}
 	err := mySQL.Open()
 	if err != nil {
 		return nil, fmt.Errorf("error while connecting to MySQL server: %w", err)
@@ -32,20 +32,30 @@ func NewMySQLConnection(connectionString string) (*MySQLConnection, error) {
 		return nil, fmt.Errorf("error while creating database: %w", err)
 	}
 
-	db := &MySQLConnection{ConnectionString: connectionString + DatabaseName}
+	db := &MySQLConnection{connectionString: connectionString + DatabaseName}
 	err = db.Open()
 	if err != nil {
 		return nil, fmt.Errorf("error while connecting to database: %w", err)
 	}
+
+	// Create stores
+	devices := MySQLDeviceStore{DB: db.DB()}
+	devices.Setup(isSetupDestructive)
+	db.SetDevices(&devices)
+	
+	events := MySQLEventStore{DB: db.DB()}
+	events.Setup(isSetupDestructive)
+	db.SetEvents(&events)
+
 	return db, nil
 }
 func (manager *MySQLConnection) Open() error {
-	db, err := sql.Open("mysql", manager.ConnectionString)
+	db, err := sql.Open("mysql", manager.connectionString)
 	if err != nil {
-		return fmt.Errorf("error opening to MySQL via connection string %v: %w", manager.ConnectionString, err)
+		return fmt.Errorf("error opening to MySQL via connection string %v: %w", manager.connectionString, err)
 	}
 	if err = db.Ping(); err != nil {
-		return fmt.Errorf("error pinging MySQL via connection string %v: %w", manager.ConnectionString, err)
+		return fmt.Errorf("error pinging MySQL via connection string %v: %w", manager.connectionString, err)
 	}
 	manager.db = db
 	return nil
@@ -67,6 +77,18 @@ func (manager *MySQLConnection) Status() (connection.PingResult, string) {
 	}
 	return connection.Good, ""
 }
+func (manager *MySQLConnection) Devices() db.DeviceStore {
+	return manager.deviceStore
+}
+func (manager *MySQLConnection) Events() db.EventStore {
+	return manager.eventStore
+}
 func (manager *MySQLConnection) DB() *sql.DB {
 	return manager.db
+}
+func (manager *MySQLConnection) SetDevices(deviceStore db.DeviceStore) {
+	manager.deviceStore = deviceStore
+}
+func (manager *MySQLConnection) SetEvents(eventStore db.EventStore) {
+	manager.eventStore = eventStore
 }

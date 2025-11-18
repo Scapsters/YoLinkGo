@@ -153,7 +153,7 @@ func (c *YoLinkConnection) GetDeviceState(device data.StoreDevice) ([]data.Event
 	for _, pair := range pairs {
 		events = append(events, data.Event{
 			EventSourceDeviceID: device.ID,
-			RequestDeviceID:     "1",
+			RequestDeviceID:     "1", //TODO: what does this mean
 			ResponseTimestamp:   deviceState.Time, 
 			EventTimestamp:      eventTimestamp.Unix(),
 			FieldName:           pair.K,
@@ -162,9 +162,9 @@ func (c *YoLinkConnection) GetDeviceState(device data.StoreDevice) ([]data.Event
 	}
 	return events, nil
 }
-func (c *YoLinkConnection) GetManagedDevices(store db.DeviceStore) ([]data.StoreDevice, error) {
+func (c *YoLinkConnection) GetManagedDevices(dbConnection db.DBConnection) ([]data.StoreDevice, error) {
 	brand := YOLINK_BRAND_NAME
-	devices, err := store.Get(data.DeviceFilter{Brand: &brand})
+	devices, err := dbConnection.Devices().Get(data.DeviceFilter{Brand: &brand})
 	if err != nil {
 		return nil, fmt.Errorf("error while seraching for devices: %w", err)
 	}
@@ -188,7 +188,7 @@ func MakeYoLinkRequest[T any](c *YoLinkConnection, simpleBDDP SimpleBDDP) (*T, e
 	}
 	return response, nil
 }
-func (c *YoLinkConnection) UpdateManagedDevices(store db.DeviceStore) error {
+func (c *YoLinkConnection) UpdateManagedDevices(dbConnection db.DBConnection) error {
 	// Get device List
 	result, err := MakeYoLinkRequest[TypedBUDP[YoLinkDeviceList]](c, SimpleBDDP{Method: HomeGetDeviceList})
 	if err != nil {
@@ -199,9 +199,10 @@ func (c *YoLinkConnection) UpdateManagedDevices(store db.DeviceStore) error {
 	}
 
 	// Store unique devices
+	numDevicesAdded := 0
 	for _, device := range result.Data.Devices {
 		// Check if device exists
-		existingDevices, err := store.Get(data.DeviceFilter{ID: &device.DeviceID})
+		existingDevices, err := dbConnection.Devices().Get(data.DeviceFilter{ID: &device.DeviceID})
 		if err != nil {
 			return fmt.Errorf("error while scanning Devices for device ID %v: %w", device.DeviceID, err)
 		}
@@ -213,7 +214,7 @@ func (c *YoLinkConnection) UpdateManagedDevices(store db.DeviceStore) error {
 		}
 
 		// Add device otherwise
-		err = store.Add(data.Device{
+		err = dbConnection.Devices().Add(data.Device{
 			Brand: 	   YOLINK_BRAND_NAME,
 			Kind:      device.Kind,
 			Name:      device.Name,
@@ -224,7 +225,10 @@ func (c *YoLinkConnection) UpdateManagedDevices(store db.DeviceStore) error {
 		if err != nil {
 			return fmt.Errorf("error adding device %v: %w", device, err)
 		}
+		numDevicesAdded++
 	}
+	fmt.Printf("%v devices added\n", numDevicesAdded)
+	
 	return nil
 }
 

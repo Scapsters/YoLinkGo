@@ -25,10 +25,11 @@ func main() {
 }
 func run() error {
 	// Connect to DB
-	stores, err := connectToStores()
+	dbConnection, err := mysql.NewMySQLConnection("root:101098@tcp(127.0.0.1:3306)/", true)
 	if err != nil {
-		return fmt.Errorf("error while connecting to stores: %w", err)
+		return fmt.Errorf("error connecting to DB: %w", err)
 	}
+	defer dbConnection.Close() // ignore error
 
 	// Connect to YoLink
 	yoLinkConnection, err := sensors.NewYoLinkConnection(
@@ -38,31 +39,33 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("error while creating new YoLink connection: %w", err)
 	}
-	err = yoLinkConnection.UpdateManagedDevices(stores.Devices)
+	err = yoLinkConnection.UpdateManagedDevices(dbConnection)
 	if err != nil {
 		return fmt.Errorf("error while updating YoLink device data: %w", err)
 	}
 
 	// Store sensor data 
-	err = storeAllConnectionSensorData(stores, yoLinkConnection)
+	fmt.Println("Initial run starting...")
+	err = storeAllConnectionSensorData(dbConnection, yoLinkConnection)
 	if err != nil {
 		return fmt.Errorf("error while storing sensor data: %w", err)
 	}
 
 	// Repeat job for 24h. Currently, this function is blocking
+	fmt.Println("Scheduling starting...")
 	scheduleJob(
 		func() {
 			fmt.Println("starting")
-			storeAllConnectionSensorData(stores, yoLinkConnection)
+			storeAllConnectionSensorData(dbConnection, yoLinkConnection)
 		},
 		5*time.Minute,
 	)
 	return nil
 }
 
-func storeAllConnectionSensorData(stores *db.StoreCollection, sensorConnection sensors.SensorConnection) error {
+func storeAllConnectionSensorData(dbConnection db.DBConnection, sensorConnection sensors.SensorConnection) error {
 	// Get all devices
-	devices, err := sensorConnection.GetManagedDevices(stores.Devices)
+	devices, err := sensorConnection.GetManagedDevices(dbConnection)
 	if err != nil {
 		return fmt.Errorf("error while seraching for devices: %w", err)
 	}
@@ -77,31 +80,13 @@ func storeAllConnectionSensorData(stores *db.StoreCollection, sensorConnection s
 			log.Default().Output(1, fmt.Sprintf("\nerror getting events from device %v: %v\n", device, err))
 		}
 		for _, event := range events {
-			err := stores.Events.Add(event)
+			err := dbConnection.Events().Add(event)
 			if err != nil {
 				log.Default().Output(1, fmt.Sprintf("\nerror adding event to DB %v: %v\n", event, err))
 			}
 		}
 	}
 	return nil
-}
-
-func connectToStores() (*db.StoreCollection, error) {
-	// Connect to DB
-	dbConnection, err := mysql.NewMySQLConnection("root:101098@tcp(127.0.0.1:3306)/")
-	if err != nil {
-		return nil, fmt.Errorf("error connecting to DB: %w", err)
-	}
-	defer dbConnection.Close() // ignore error
-	
-	// Create stores
-	stores := db.StoreCollection{
-		Devices: &mysql.MySQLDeviceStore{DB: dbConnection.DB()},
-		Events:  &mysql.MySQLEventStore{DB: dbConnection.DB()},
-	}
-	stores.Devices.Setup(true)
-	stores.Events.Setup(true)
-	return &stores, nil
 }
 
 func scheduleJob(function any, interval time.Duration) error {

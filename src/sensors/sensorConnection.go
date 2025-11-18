@@ -11,7 +11,7 @@ type SensorConnection interface {
 	// Queries the API for the current state of the device
 	GetDeviceState(data.StoreDevice) ([]data.Event, error)
 	// Queries the DB for all devices that are able to be managed by the connection
-	GetManagedDevices(db.DeviceStore) ([]data.StoreDevice, error)
+	GetManagedDevices(db.DBConnection) ([]data.StoreDevice, error)
 	// Queries the API for all available devices (if possible)
-	UpdateManagedDevices(db.DeviceStore) (error)
+	UpdateManagedDevices(db.DBConnection) (error)
 }
