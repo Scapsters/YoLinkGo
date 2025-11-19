@@ -6,7 +6,7 @@ import (
 	"os"
 )
 
-const logDepth int = 100 
+const logDepth int = 100
 
 // For low-risk function calls that would be cumbersome to deal with otherwise, such as connection closing calls in defer statements.
 func LogErrors(function func() error, description string) {

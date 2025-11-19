@@ -1,6 +1,6 @@
 package utils
 
-const DefaultRetries int = 3 
+const DefaultRetries int = 3
 
 // Retry the given function some amount of times. If no success is reached, the last given error will be returned,
 // The number after the function name refers to how many output values the given function has.

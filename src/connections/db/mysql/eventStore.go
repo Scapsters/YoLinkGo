@@ -156,7 +156,7 @@ func (store *MySQLEventStore) GetInTimeRange(filter data.EventFilter, startTime 
 		}
 		err = rows.Err()
 		if err != nil {
-			return nil, nil, fmt.Errorf("error in rows: %w", err) 
+			return nil, nil, fmt.Errorf("error in rows: %w", err)
 		}
 		if len(events) == 0 {
 			return []data.StoreEvent{}, nil, nil

@@ -51,7 +51,7 @@ func PostForm[T any](urlString string, body map[string]string) (*T, error) {
 	request, err := http.NewRequestWithContext(
 		context,
 		http.MethodPost,
-		urlString, 
+		urlString,
 		strings.NewReader(formValues.Encode()),
 	)
 	if err != nil {

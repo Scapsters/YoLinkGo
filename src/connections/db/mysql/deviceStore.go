@@ -135,7 +135,7 @@ func (store *MySQLDeviceStore) Get(filter data.DeviceFilter) (*data.IterablePagi
 		}
 		err = rows.Err()
 		if err != nil {
-			return nil, nil, fmt.Errorf("error in rows: %w", err) 
+			return nil, nil, fmt.Errorf("error in rows: %w", err)
 		}
 		if len(devices) == 0 {
 			return []data.StoreDevice{}, nil, nil

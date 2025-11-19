@@ -236,6 +236,7 @@ func (c *YoLinkConnection) UpdateManagedDevices(dbConnection db.DBConnection) er
 
 	return nil
 }
+
 // Refresh the current token. Requires an existing token to exist.
 func (c *YoLinkConnection) refreshCurrentToken() error {
 	response, err := utils.PostForm[AuthenticationResponse](
