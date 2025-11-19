@@ -1,3 +1,17 @@
 version: "2"
 linters:
   default: all # standard/all/none/fast
+  disable:
+    - depguard
+    - bodyclose
+    - lll
+    - exhaustruct
+    - wsl
+    - wsl_v5
+    - varnamelen
+    - err113
+    - forbidigo
+    - nilnil
+    - nlreturn
+    - revive
+    - unqueryvet
