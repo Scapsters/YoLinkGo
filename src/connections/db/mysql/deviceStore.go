@@ -71,7 +71,7 @@ func (store *MySQLDeviceStore) Get(filter data.DeviceFilter) (*data.IterablePagi
 	}
 	if filter.BrandID != nil {
 		conditions = append(conditions, "brand_device_id = ?")
-		args = append(args, *filter.ID)
+		args = append(args, *filter.BrandID)
 	}
 	if filter.Brand != nil {
 		conditions = append(conditions, "device_brand = ?")
