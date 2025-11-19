@@ -110,7 +110,7 @@ func (store *MySQLEventStore) GetInTimeRange(filter data.EventFilter, startTime 
 	if len(conditions) > 0 {
 		query += " WHERE " + strings.Join(conditions, " AND ")
 	}
-	
+
 	// Add pagination condition
 	if len(conditions) > 0 {
 		query += " AND "
@@ -118,7 +118,7 @@ func (store *MySQLEventStore) GetInTimeRange(filter data.EventFilter, startTime 
 		query += " WHERE "
 	}
 	query += "event_id > ? ORDER BY event_id LIMIT ?"
-	
+
 	getPage := func(lastID *string) ([]data.StoreEvent, *string, error) {
 		var filterID string
 		if lastID != nil {
@@ -129,7 +129,7 @@ func (store *MySQLEventStore) GetInTimeRange(filter data.EventFilter, startTime 
 			return nil, nil, fmt.Errorf("error querying events with filter %v: %w", filter, err)
 		}
 		defer utils.LogErrors(rows.Close, fmt.Sprintf("error closing rows for query %v and lastID %v", query, lastID))
-		
+
 		var events []data.StoreEvent
 		for rows.Next() {
 			var event data.StoreEvent
@@ -153,7 +153,7 @@ func (store *MySQLEventStore) GetInTimeRange(filter data.EventFilter, startTime 
 		lastEvent := events[len(events)-1]
 		return events, &lastEvent.ID, nil
 	}
-	
+
 	return &data.IterablePaginatedData[data.StoreEvent]{GetPage: getPage}, nil
 }
 func (store *MySQLEventStore) Setup(isDestructive bool) error {

@@ -15,8 +15,8 @@ var _ db.DBConnection = (*MySQLConnection)(nil)
 
 type MySQLConnection struct {
 	connectionString string
-	eventStore db.EventStore
-	deviceStore db.DeviceStore
+	eventStore       db.EventStore
+	deviceStore      db.DeviceStore
 	db               *sql.DB
 }
 
@@ -45,7 +45,7 @@ func NewMySQLConnection(connectionString string, isSetupDestructive bool) (*MySQ
 		return nil, fmt.Errorf("error setting up devices: %w", err)
 	}
 	db.SetDevices(&devices)
-	
+
 	events := MySQLEventStore{DB: db.DB()}
 	err = events.Setup(isSetupDestructive)
 	if err != nil {

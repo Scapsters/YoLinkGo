@@ -48,7 +48,7 @@ func run() error {
 		return fmt.Errorf("error while updating YoLink device data: %w", err)
 	}
 
-	// Store sensor data 
+	// Store sensor data
 	fmt.Println("Initial run starting...")
 	err = storeAllConnectionSensorData(dbConnection, yoLinkConnection)
 	if err != nil {
@@ -85,7 +85,7 @@ func run() error {
 
 func storeAllConnectionSensorData(dbConnection db.DBConnection, sensorConnection sensors.SensorConnection) error {
 	// Get all devices
-	devices, err := utils.Retry2(3, func() (*data.IterablePaginatedData[data.StoreDevice], error) { 
+	devices, err := utils.Retry2(3, func() (*data.IterablePaginatedData[data.StoreDevice], error) {
 		return sensorConnection.GetManagedDevices(dbConnection)
 	})
 	if err != nil {
@@ -102,7 +102,7 @@ func storeAllConnectionSensorData(dbConnection db.DBConnection, sensorConnection
 		}
 
 		// Get device data
-		events, err := utils.Retry2(3, func() ([]data.Event, error) { 
+		events, err := utils.Retry2(3, func() ([]data.Event, error) {
 			return sensorConnection.GetDeviceState(device)
 		})
 		if err != nil {

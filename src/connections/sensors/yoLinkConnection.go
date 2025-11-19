@@ -83,7 +83,7 @@ func (c *YoLinkConnection) Open() error {
 			return fmt.Errorf("error refreshing current tokens with connection %v: %w", c, err)
 		}
 	}
-	
+
 	return nil
 }
 func (c *YoLinkConnection) Close() error {
@@ -157,7 +157,7 @@ func (c *YoLinkConnection) GetDeviceState(device *data.StoreDevice) ([]data.Even
 	for _, pair := range pairs {
 		events = append(events, data.Event{
 			EventSourceDeviceID: device.ID,
-			RequestDeviceID:     "1", //TODO: what does this mean
+			RequestDeviceID:     "1",                     //TODO: what does this mean
 			ResponseTimestamp:   deviceState.Time / 1000, // Convert to seconds
 			EventTimestamp:      eventTimestamp.Unix(),
 			FieldName:           pair.K,
@@ -237,7 +237,7 @@ func (c *YoLinkConnection) UpdateManagedDevices(dbConnection db.DBConnection) er
 			Kind:      device.Kind,
 			Name:      device.Name,
 			Token:     device.Token,
-			BrandID:        device.DeviceID,
+			BrandID:   device.DeviceID,
 			Timestamp: utils.TimeSeconds(),
 		})
 		if err != nil {
