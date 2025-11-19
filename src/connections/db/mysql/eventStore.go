@@ -65,6 +65,9 @@ func (store *MySQLEventStore) Delete(storeItem data.StoreEvent) error {
 	return nil
 }
 func (store *MySQLEventStore) Get(filter data.EventFilter) (*data.IterablePaginatedData[data.StoreEvent], error) {
+	return store.GetInTimeRange(filter, nil, nil)
+}
+func (store *MySQLEventStore) GetInTimeRange(filter data.EventFilter, startTime *int64, endTime *int64) (*data.IterablePaginatedData[data.StoreEvent], error) {
 	// Build conditions
 	args := []any{}
 	conditions := []string{}
@@ -96,11 +99,19 @@ func (store *MySQLEventStore) Get(filter data.EventFilter) (*data.IterablePagina
 		conditions = append(conditions, "field_value = ?")
 		args = append(args, *filter.EventSourceDeviceID)
 	}
+	if startTime != nil {
+		conditions = append(conditions, "event_timestamp > ?")
+		args = append(args, startTime)
+	}
+	if endTime != nil {
+		conditions = append(conditions, "event_timestamp < ?")
+		args = append(args, endTime)
+	}
 	query := "SELECT * FROM events"
 	if len(conditions) > 0 {
 		query += " WHERE " + strings.Join(conditions, " AND ")
 	}
-
+	
 	// Add pagination condition
 	if len(conditions) > 0 {
 		query += " AND "
@@ -108,7 +119,7 @@ func (store *MySQLEventStore) Get(filter data.EventFilter) (*data.IterablePagina
 		query += " WHERE "
 	}
 	query += "event_id > ? ORDER BY event_id LIMIT ?"
-
+	
 	getPage := func(lastID *string) ([]data.StoreEvent, *string, error) {
 		var filterID string
 		if lastID != nil {
@@ -119,7 +130,7 @@ func (store *MySQLEventStore) Get(filter data.EventFilter) (*data.IterablePagina
 			return nil, nil, fmt.Errorf("error querying events with filter %v: %w", filter, err)
 		}
 		defer rows.Close() // ignore error
-
+		
 		var events []data.StoreEvent
 		for rows.Next() {
 			var event data.StoreEvent
@@ -143,7 +154,7 @@ func (store *MySQLEventStore) Get(filter data.EventFilter) (*data.IterablePagina
 		lastEvent := events[len(events)-1]
 		return events, &lastEvent.ID, nil
 	}
-
+	
 	return &data.IterablePaginatedData[data.StoreEvent]{GetPage: getPage}, nil
 }
 func (store *MySQLEventStore) Setup(isDestructive bool) error {
@@ -187,7 +198,9 @@ func (store *MySQLEventStore) Setup(isDestructive bool) error {
 	return nil
 }
 func (store *MySQLEventStore) Export(filter data.EventFilter) error {
-
+	return store.ExportInTimeRange(filter, nil, nil)
+}
+func (store *MySQLEventStore) ExportInTimeRange(filter data.EventFilter, startTime *int64, endTime *int64) error {
 	// Ensure exports directory exists
 	if err := os.MkdirAll(db.EXPORT_DIR, 0755); err != nil {
 		return fmt.Errorf("error creating export directory: %w", err)
@@ -220,7 +233,7 @@ func (store *MySQLEventStore) Export(filter data.EventFilter) error {
 	}
 
 	// Get data
-	events, err := store.Get(filter)
+	events, err := store.GetInTimeRange(filter, startTime, endTime)
 	if err != nil {
 		return fmt.Errorf("error getting devices for export with filter %v: %w", filter, err)
 	}

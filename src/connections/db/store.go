@@ -28,7 +28,8 @@ type EditableStore[T any, S any, F any] interface {
 type TimestampedDataStore[T any, S any, F any] interface {
 	GenericStore[T, S, F]
 	// Exports all rows that match the given filter and date range. The date range should refer to the recording time of the data in the row.
-	// ExportTimestampedData(storeItem S, startTime int64, endTime int64) error
+	ExportInTimeRange(filter F, startTime *int64, endTime *int64) error
+	GetInTimeRange(filter F, startTime *int64, endTime *int64) (*data.IterablePaginatedData[S], error)
 }
 
 type DeviceStore interface {
