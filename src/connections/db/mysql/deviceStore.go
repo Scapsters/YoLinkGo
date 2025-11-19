@@ -21,7 +21,9 @@ type MySQLDeviceStore struct {
 }
 
 func (store *MySQLDeviceStore) Add(item data.Device) error {
-	_, err := store.DB.Exec(
+	context, cancel := utils.TimeoutContext(requestTimeout)
+	defer cancel()
+	_, err := store.DB.ExecContext(context,
 		`
         INSERT INTO devices (
 			device_id,
@@ -47,7 +49,9 @@ func (store *MySQLDeviceStore) Add(item data.Device) error {
 	return nil
 }
 func (store *MySQLDeviceStore) Delete(device data.StoreDevice) error {
-	res, err := store.DB.Exec(`DELETE FROM devices WHERE brand_device_id = ?`, device.ID)
+	context, cancel := utils.TimeoutContext(requestTimeout)
+	defer cancel()
+	res, err := store.DB.ExecContext(context, `DELETE FROM devices WHERE brand_device_id = ?`, device.ID)
 	if err != nil {
 		return fmt.Errorf("error deleting device %v: %w", device, err)
 	}
@@ -104,7 +108,9 @@ func (store *MySQLDeviceStore) Get(filter data.DeviceFilter) (*data.IterablePagi
 		if lastID != nil {
 			filterID = *lastID
 		}
-		rows, err := store.DB.Query(query, append(args, filterID, data.PAGE_SIZE)...)
+		context, cancel := utils.TimeoutContext(requestTimeout)
+		defer cancel()
+		rows, err := store.DB.QueryContext(context, query, append(args, filterID, data.PAGE_SIZE)...)
 		if err != nil {
 			return nil, lastID, fmt.Errorf("error querying devices: %w", err)
 		}
@@ -127,6 +133,10 @@ func (store *MySQLDeviceStore) Get(filter data.DeviceFilter) (*data.IterablePagi
 			}
 			devices = append(devices, device)
 		}
+		err = rows.Err()
+		if err != nil {
+			return nil, nil, fmt.Errorf("error in rows: %w", err) 
+		}
 		if len(devices) == 0 {
 			return []data.StoreDevice{}, nil, nil
 		}
@@ -138,17 +148,28 @@ func (store *MySQLDeviceStore) Get(filter data.DeviceFilter) (*data.IterablePagi
 }
 func (store *MySQLDeviceStore) Setup(isDestructive bool) error {
 	if isDestructive {
-		if _, err := store.DB.Exec(`SET FOREIGN_KEY_CHECKS = 0`); err != nil {
+		context, cancel := utils.TimeoutContext(requestTimeout)
+		defer cancel()
+		_, err := store.DB.ExecContext(context, `SET FOREIGN_KEY_CHECKS = 0`)
+		if err != nil {
 			return fmt.Errorf("error disabling FK checks: %w", err)
 		}
-		if _, err := store.DB.Exec(`DROP TABLE IF EXISTS devices`); err != nil {
+		context, cancel = utils.TimeoutContext(requestTimeout)
+		defer cancel()
+		_, err = store.DB.ExecContext(context, `DROP TABLE IF EXISTS devices`)
+		if err != nil {
 			return fmt.Errorf("error dropping devices table: %w", err)
 		}
-		if _, err := store.DB.Exec(`SET FOREIGN_KEY_CHECKS = 1`); err != nil {
+		context, cancel = utils.TimeoutContext(requestTimeout)
+		defer cancel()
+		_, err = store.DB.ExecContext(context, `SET FOREIGN_KEY_CHECKS = 1`)
+		if err != nil {
 			return fmt.Errorf("error enabling FK checks: %w", err)
 		}
 	} // TODO: token (and others) is very yolink specific. device info needs its own denormalized table?
-	_, err := store.DB.Exec(`
+	context, cancel := utils.TimeoutContext(requestTimeout)
+	defer cancel()
+	_, err := store.DB.ExecContext(context, `
         CREATE TABLE IF NOT EXISTS devices (
 			device_id 			VARCHAR(40) NOT NULL,
             brand_device_id 	VARCHAR(40) NOT NULL,
@@ -166,7 +187,9 @@ func (store *MySQLDeviceStore) Setup(isDestructive bool) error {
 	return nil
 }
 func (store *MySQLDeviceStore) Edit(device data.StoreDevice) error {
-	res, err := store.DB.Exec(`
+	context, cancel := utils.TimeoutContext(requestTimeout)
+	defer cancel()
+	res, err := store.DB.ExecContext(context, `
         UPDATE devices
         SET
 			brand_device_id  = ?
@@ -201,9 +224,10 @@ func (store *MySQLDeviceStore) Edit(device data.StoreDevice) error {
 	return nil
 }
 func (store *MySQLDeviceStore) Export(filter data.DeviceFilter) error {
-
 	// Ensure exports directory exists
-	if err := os.MkdirAll(db.EXPORT_DIR, 0755); err != nil {
+	var OwnerReadWriteExecuteAndOthersReadExecute = 0755
+	err := os.MkdirAll(db.EXPORT_DIR, os.FileMode(OwnerReadWriteExecuteAndOthersReadExecute))
+	if err != nil {
 		return fmt.Errorf("error creating export directory: %w", err)
 	}
 
@@ -221,7 +245,7 @@ func (store *MySQLDeviceStore) Export(filter data.DeviceFilter) error {
 	defer w.Flush()
 
 	// Write CSV header
-	if err := w.Write([]string{
+	err = w.Write([]string{
 		"internal_device_id",
 		"brand_device_id",
 		"device_brand",
@@ -229,7 +253,8 @@ func (store *MySQLDeviceStore) Export(filter data.DeviceFilter) error {
 		"device_name",
 		"device_token",
 		"device_timestamp",
-	}); err != nil {
+	})
+	if err != nil {
 		return fmt.Errorf("error writing CSV header: %w", err)
 	}
 

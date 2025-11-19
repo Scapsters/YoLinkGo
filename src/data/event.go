@@ -1,6 +1,6 @@
 package data
 
-// An event as read from a store. Mutations are not implicitly persisted
+// An event as read from a store. Mutations are not implicitly persisted.
 type StoreEvent struct {
 	ID                  string
 	RequestDeviceID     string
@@ -11,7 +11,7 @@ type StoreEvent struct {
 	FieldValue          string
 }
 
-// An event that is not neccesarily associated with a Store object
+// An event that is not necessarily associated with a Store object.
 type Event struct {
 	RequestDeviceID     string
 	EventSourceDeviceID string
@@ -21,7 +21,7 @@ type Event struct {
 	FieldValue          string
 }
 
-// A partial event for querying a store
+// A partial event for querying a store.
 type EventFilter struct {
 	ID                  *string
 	RequestDeviceID     *string

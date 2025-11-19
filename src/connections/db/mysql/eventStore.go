@@ -21,7 +21,9 @@ type MySQLEventStore struct {
 }
 
 func (store *MySQLEventStore) Add(item data.Event) error {
-	_, err := store.DB.Exec(
+	context, cancel := utils.TimeoutContext(requestTimeout)
+	defer cancel()
+	_, err := store.DB.ExecContext(context,
 		`
 			INSERT INTO events (
 				event_id,
@@ -47,7 +49,10 @@ func (store *MySQLEventStore) Add(item data.Event) error {
 	return nil
 }
 func (store *MySQLEventStore) Delete(storeItem data.StoreEvent) error {
-	response, err := store.DB.Exec(
+	context, cancel := utils.TimeoutContext(requestTimeout)
+	defer cancel()
+	response, err := store.DB.ExecContext(
+		context,
 		`DELETE FROM events WHERE (event_id = ?)`,
 		storeItem.ID,
 	)
@@ -124,7 +129,9 @@ func (store *MySQLEventStore) GetInTimeRange(filter data.EventFilter, startTime 
 		if lastID != nil {
 			filterID = *lastID
 		}
-		rows, err := store.DB.Query(query, append(args, filterID, data.PAGE_SIZE)...)
+		context, cancel := utils.TimeoutContext(requestTimeout)
+		defer cancel()
+		rows, err := store.DB.QueryContext(context, query, append(args, filterID, data.PAGE_SIZE)...)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error querying events with filter %v: %w", filter, err)
 		}
@@ -147,6 +154,10 @@ func (store *MySQLEventStore) GetInTimeRange(filter data.EventFilter, startTime 
 			}
 			events = append(events, event)
 		}
+		err = rows.Err()
+		if err != nil {
+			return nil, nil, fmt.Errorf("error in rows: %w", err) 
+		}
 		if len(events) == 0 {
 			return []data.StoreEvent{}, nil, nil
 		}
@@ -158,17 +169,28 @@ func (store *MySQLEventStore) GetInTimeRange(filter data.EventFilter, startTime 
 }
 func (store *MySQLEventStore) Setup(isDestructive bool) error {
 	if isDestructive {
-		if _, err := store.DB.Exec(`SET FOREIGN_KEY_CHECKS = 0`); err != nil {
+		context, cancel := utils.TimeoutContext(requestTimeout)
+		defer cancel()
+		_, err := store.DB.ExecContext(context, `SET FOREIGN_KEY_CHECKS = 0`)
+		if err != nil {
 			return fmt.Errorf("error disabling FK checks: %w", err)
 		}
-		if _, err := store.DB.Exec(`DROP TABLE IF EXISTS events`); err != nil {
+		context, cancel = utils.TimeoutContext(requestTimeout)
+		defer cancel()
+		_, err = store.DB.ExecContext(context, `DROP TABLE IF EXISTS events`)
+		if err != nil {
 			return fmt.Errorf("error dropping events table: %w", err)
 		}
-		if _, err := store.DB.Exec(`SET FOREIGN_KEY_CHECKS = 1`); err != nil {
+		context, cancel = utils.TimeoutContext(requestTimeout)
+		defer cancel()
+		_, err = store.DB.ExecContext(context, `SET FOREIGN_KEY_CHECKS = 1`)
+		if err != nil {
 			return fmt.Errorf("error enabling FK checks: %w", err)
 		}
 	}
-	_, err := store.DB.Exec(`		
+	context, cancel := utils.TimeoutContext(requestTimeout)
+	defer cancel()
+	_, err := store.DB.ExecContext(context, `		
 		CREATE TABLE IF NOT EXISTS events (
 			event_id VARCHAR(36) NOT NULL,
 
@@ -201,7 +223,9 @@ func (store *MySQLEventStore) Export(filter data.EventFilter) error {
 }
 func (store *MySQLEventStore) ExportInTimeRange(filter data.EventFilter, startTime *int64, endTime *int64) error {
 	// Ensure exports directory exists
-	if err := os.MkdirAll(db.EXPORT_DIR, 0755); err != nil {
+	var OwnerReadWriteExecuteAndOthersReadExecute = 0755
+	err := os.MkdirAll(db.EXPORT_DIR, os.FileMode(OwnerReadWriteExecuteAndOthersReadExecute))
+	if err != nil {
 		return fmt.Errorf("error creating export directory: %w", err)
 	}
 
@@ -219,7 +243,7 @@ func (store *MySQLEventStore) ExportInTimeRange(filter data.EventFilter, startTi
 	defer w.Flush()
 
 	// Write CSV header
-	if err := w.Write([]string{
+	err = w.Write([]string{
 		"event_id",
 		"request_device_id",
 		"event_source_device_id",
@@ -227,7 +251,8 @@ func (store *MySQLEventStore) ExportInTimeRange(filter data.EventFilter, startTi
 		"event_timestamp",
 		"field_name",
 		"field_value",
-	}); err != nil {
+	})
+	if err != nil {
 		return fmt.Errorf("error writing CSV header: %w", err)
 	}
 
@@ -248,7 +273,7 @@ func (store *MySQLEventStore) ExportInTimeRange(filter data.EventFilter, startTi
 		}
 
 		err = w.Write([]string{
-			fmt.Sprint(event.ID),
+			event.ID,
 			event.RequestDeviceID,
 			event.EventSourceDeviceID,
 			utils.EpochSecondsToExcelDate(event.ResponseTimestamp),

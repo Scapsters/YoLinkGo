@@ -3,6 +3,7 @@ package mysql
 import (
 	"com/connections"
 	"com/connections/db"
+	"com/utils"
 	"database/sql"
 	"fmt"
 
@@ -10,6 +11,7 @@ import (
 )
 
 const DatabaseName = "yolinktesting"
+const requestTimeout = 60 // TODO: look into how long a big request might take
 
 var _ db.DBConnection = (*MySQLConnection)(nil)
 
@@ -20,14 +22,16 @@ type MySQLConnection struct {
 	db               *sql.DB
 }
 
-// connectionString excludes the database name and includes the slash at the end
+// connectionString excludes the database name and includes the slash at the end.
 func NewMySQLConnection(connectionString string, isSetupDestructive bool) (*MySQLConnection, error) {
 	mySQL := &MySQLConnection{connectionString: connectionString}
 	err := mySQL.Open()
 	if err != nil {
 		return nil, fmt.Errorf("error while connecting to MySQL server: %w", err)
 	}
-	_, err = mySQL.DB().Exec(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s`", DatabaseName))
+	context, cancel := utils.TimeoutContext(requestTimeout)
+	defer cancel()
+	_, err = mySQL.DB().ExecContext(context, fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s`", DatabaseName))
 	if err != nil {
 		return nil, fmt.Errorf("error while creating database: %w", err)
 	}
@@ -60,7 +64,10 @@ func (manager *MySQLConnection) Open() error {
 	if err != nil {
 		return fmt.Errorf("error opening to MySQL via connection string %v: %w", manager.connectionString, err)
 	}
-	if err = db.Ping(); err != nil {
+	context, cancel := utils.TimeoutContext(requestTimeout)
+	defer cancel()
+	err = db.PingContext(context)
+	if err != nil {
 		return fmt.Errorf("error pinging MySQL via connection string %v: %w", manager.connectionString, err)
 	}
 	manager.db = db
@@ -77,7 +84,9 @@ func (manager *MySQLConnection) Status() (connections.PingResult, string) {
 	if manager.db == nil {
 		return connections.Bad, "db is nil"
 	}
-	err := manager.db.Ping()
+	context, cancel := utils.TimeoutContext(requestTimeout)
+	defer cancel()
+	err := manager.db.PingContext(context)
 	if err != nil {
 		return connections.Bad, "error on db ping"
 	}

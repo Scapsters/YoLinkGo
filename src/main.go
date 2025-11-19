@@ -21,13 +21,14 @@ func main() {
 	if err != nil {
 		log.Fatal("fatal:", err)
 	}
-	if err := run(); err != nil {
+	err = run()
+	if err != nil {
 		log.Fatal("fatal:", err)
 	}
 }
 func run() error {
 	// Connect to DB
-	dbConnection, err := mysql.NewMySQLConnection("root:101098@tcp(127.0.0.1:3306)/", true)
+	dbConnection, err := mysql.NewMySQLConnection(strings.TrimSpace(os.Getenv("MYSQL_CONNECTION_STRING")), true)
 	if err != nil {
 		return fmt.Errorf("error connecting to DB: %w", err)
 	}

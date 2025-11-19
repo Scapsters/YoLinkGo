@@ -17,7 +17,8 @@ type IterablePaginatedData[T any] struct {
 func (i *IterablePaginatedData[T]) Next() (*T, error) {
 	// Lazy initialization
 	if i.currentLastID == nil && len(i.currentPage) == 0 {
-		if err := i.goToNextPage(); err != nil {
+		err := i.goToNextPage()
+		if err != nil {
 			return nil, err
 		}
 	}
@@ -30,7 +31,8 @@ func (i *IterablePaginatedData[T]) Next() (*T, error) {
 		}
 
 		// End of page
-		if err := i.goToNextPage(); err != nil {
+		err := i.goToNextPage()
+		if err != nil {
 			return nil, err
 		}
 
@@ -41,7 +43,7 @@ func (i *IterablePaginatedData[T]) Next() (*T, error) {
 	}
 }
 
-// Get next page and update state for next next page
+// Get next page and update state for next-next page.
 func (i *IterablePaginatedData[T]) goToNextPage() error {
 	i.currentPositionInPage = 0
 	nextPage, newLastID, err := i.GetPage(i.currentLastID)

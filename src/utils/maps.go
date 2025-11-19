@@ -12,7 +12,8 @@ func ToMap[T any](data any) (map[string]T, error) {
 		return nil, fmt.Errorf("error while marshalling %v: %w", data, err)
 	}
 	var mapped map[string]T
-	if err := json.Unmarshal(marshalled, &mapped); err != nil {
+	err = json.Unmarshal(marshalled, &mapped)
+	if err != nil {
 		return nil, fmt.Errorf("error while unmarshalling %v with intermediate value %v: %w", data, marshalled, err)
 	}
 	return mapped, nil
@@ -23,8 +24,8 @@ type KVPair struct {
 	V string
 }
 
-// Traverse a map m where all keys and nested keys are strings, and values are strings or maps of strings, adding all key value pairs to array a
-// keyPrefix will prefix all keys with the given string. External callers can provide ""
+// Traverse a map m where all keys and nested keys are strings, and values are strings or maps of strings, adding all key value pairs to array a.
+// keyPrefix will prefix all keys with the given string. External callers can provide "".
 func FlattenMap(m map[string]any, a []KVPair, keyPrefix string) []KVPair {
 	if keyPrefix != "" {
 		keyPrefix += "."

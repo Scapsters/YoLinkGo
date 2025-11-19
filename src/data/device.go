@@ -1,6 +1,6 @@
 package data
 
-// A device as read from a Store. Mutations are not implicitly persisted
+// A device as read from a Store. Mutations are not implicitly persisted.
 type StoreDevice struct {
 	ID        string
 	BrandID   string
@@ -11,7 +11,7 @@ type StoreDevice struct {
 	Timestamp int64
 }
 
-// A device that is not neccesarily associated with a Store object
+// A device that is not necessarily associated with a Store object.
 type Device struct {
 	BrandID   string
 	Brand     string
@@ -21,7 +21,7 @@ type Device struct {
 	Timestamp int64
 }
 
-// A partial device object for querying
+// A partial device object for querying.
 type DeviceFilter struct {
 	ID        *string
 	BrandID   *string
