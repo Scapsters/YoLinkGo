@@ -60,6 +60,7 @@ func (c *YoLinkConnection) Open() error {
 	}
 
 	if !hasToken || isTokenExpired {
+		utils.FDefaultSafeLog("getting access key through creds: %v", c)
 		response, err = utils.PostForm[AuthenticationResponse](
 			TOKEN_URL,
 			map[string]string{
@@ -71,16 +72,18 @@ func (c *YoLinkConnection) Open() error {
 		if err != nil {
 			return fmt.Errorf("error generating new access token with user id %v and client secret %v: %w", c.userId, c.userKey, err)
 		}
+		c.accessToken = response.AccessToken
+		c.refreshToken = response.RefreshToken
+		c.tokenExpirationTime = utils.TimeSeconds() + int64(response.ExpiresIn)
 	}
 	if isTokenNearlyExpired {
+		utils.FDefaultSafeLog("refreshing token")
 		err = c.refreshCurrentToken()
 		if err != nil {
 			return fmt.Errorf("error refreshing current tokens with connection %v: %w", c, err)
 		}
 	}
-	c.accessToken = response.AccessToken
-	c.refreshToken = response.RefreshToken
-	c.tokenExpirationTime = utils.TimeSeconds() + int64(response.ExpiresIn)
+	
 	return nil
 }
 func (c *YoLinkConnection) Close() error {
@@ -123,7 +126,7 @@ func (c *YoLinkConnection) GetDeviceState(device *data.StoreDevice) ([]data.Even
 	// Make request
 	deviceState, err := MakeYoLinkRequest[BUDP](c, SimpleBDDP{Method: YoLinkMethod(device.Kind + ".getState"), TargetDevice: &device.BrandID, Token: &device.Token})
 	if deviceState.Code != "000000" {
-		return nil, fmt.Errorf("code was non-zero: %v for device %v (name: %v) at time %v", deviceState.Code, device.BrandID, device.Name, utils.TimeSeconds())
+		return nil, fmt.Errorf("code was non-zero: %v for device %v (name: %v) in connection %v at time %v", deviceState.Code, device.BrandID, device.Name, c, utils.TimeSeconds())
 	}
 	if err != nil {
 		return nil, fmt.Errorf("error while quering device: %w", err)
