@@ -23,3 +23,7 @@ func SafeLog(l *log.Logger, calldepth int, msg string) {
 func DefaultSafeLog(msg string) {
 	SafeLog(log.Default(), 100, msg)
 }
+
+func FDefaultSafeLog(fmsg string, args... any) {
+	SafeLog(log.Default(), 100, fmt.Sprintf(fmsg, args...))
+}
