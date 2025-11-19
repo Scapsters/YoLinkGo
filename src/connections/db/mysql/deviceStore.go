@@ -7,7 +7,6 @@ import (
 	"database/sql"
 	"encoding/csv"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 	"time"
@@ -109,7 +108,7 @@ func (store *MySQLDeviceStore) Get(filter data.DeviceFilter) (*data.IterablePagi
 		if err != nil {
 			return nil, lastID, fmt.Errorf("error querying devices: %w", err)
 		}
-		defer rows.Close()
+		defer utils.LogErrors(rows.Close, fmt.Sprintf("error closing rows for query %v and lastID %v", query, lastID))
 
 		var devices []data.StoreDevice
 		for rows.Next() {
@@ -195,7 +194,7 @@ func (store *MySQLDeviceStore) Edit(device data.StoreDevice) error {
 		return fmt.Errorf("error checking rows affected for device %v: %w", device, err)
 	}
 	if rows == 0 {
-		log.Default().Output(1, fmt.Sprintf("device %v was not found when attempting to update it", device))
+		utils.DefaultSafeLog(fmt.Sprintf("device %v was not found when attempting to update it", device))
 		return fmt.Errorf("no device updated with ID %v", device.ID)
 	}
 
@@ -216,7 +215,7 @@ func (store *MySQLDeviceStore) Export(filter data.DeviceFilter) error {
 	if err != nil {
 		return fmt.Errorf("error creating export file: %w", err)
 	}
-	defer f.Close()
+	defer utils.LogErrors(f.Close, fmt.Sprintf("error closing file %v", filename))
 
 	w := csv.NewWriter(f)
 	defer w.Flush()
@@ -244,7 +243,7 @@ func (store *MySQLDeviceStore) Export(filter data.DeviceFilter) error {
 	for {
 		device, err := devices.Next()
 		if err != nil {
-			log.Default().Output(1, fmt.Sprintf("Error while fetching device while exporting: %v", err))
+			utils.DefaultSafeLog(fmt.Sprintf("Error while fetching device while exporting: %v", err))
 		}
 		if device == nil {
 			break
@@ -260,7 +259,7 @@ func (store *MySQLDeviceStore) Export(filter data.DeviceFilter) error {
 			utils.EpochSecondsToExcelDate(device.Timestamp),
 		})
 		if err != nil {
-			log.Default().Output(1, fmt.Sprintf("Error while writing csv row with data %v: %v", device, err))
+			utils.DefaultSafeLog(fmt.Sprintf("Error while writing csv row with data %v: %v", device, err))
 		}
 	}
 

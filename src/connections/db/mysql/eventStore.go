@@ -7,7 +7,6 @@ import (
 	"database/sql"
 	"encoding/csv"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 	"time"
@@ -129,7 +128,7 @@ func (store *MySQLEventStore) GetInTimeRange(filter data.EventFilter, startTime 
 		if err != nil {
 			return nil, nil, fmt.Errorf("error querying events with filter %v: %w", filter, err)
 		}
-		defer rows.Close() // ignore error
+		defer utils.LogErrors(rows.Close, fmt.Sprintf("error closing rows for query %v and lastID %v", query, lastID))
 		
 		var events []data.StoreEvent
 		for rows.Next() {
@@ -214,7 +213,7 @@ func (store *MySQLEventStore) ExportInTimeRange(filter data.EventFilter, startTi
 	if err != nil {
 		return fmt.Errorf("error creating export file: %w", err)
 	}
-	defer f.Close()
+	defer utils.LogErrors(f.Close, fmt.Sprintf("error closing file %v", filename))
 
 	w := csv.NewWriter(f)
 	defer w.Flush()
@@ -242,7 +241,7 @@ func (store *MySQLEventStore) ExportInTimeRange(filter data.EventFilter, startTi
 	for {
 		event, err := events.Next()
 		if err != nil {
-			log.Default().Output(1, fmt.Sprintf("Error while fetching device while exporting: %v", err))
+			utils.DefaultSafeLog(fmt.Sprintf("Error while fetching device while exporting: %v", err))
 		}
 		if event == nil {
 			break
@@ -258,7 +257,7 @@ func (store *MySQLEventStore) ExportInTimeRange(filter data.EventFilter, startTi
 			event.FieldValue,
 		})
 		if err != nil {
-			log.Default().Output(1, fmt.Sprintf("Error while writing csv row with data %v: %v", event, err))
+			utils.DefaultSafeLog(fmt.Sprintf("Error while writing csv row with data %v: %v", event, err))
 		}
 	}
 

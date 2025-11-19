@@ -5,6 +5,7 @@ import (
 	"com/connections/db/mysql"
 	"com/connections/sensors"
 	"com/data"
+	"com/utils"
 	"fmt"
 	"log"
 	"os"
@@ -30,13 +31,15 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("error connecting to DB: %w", err)
 	}
-	defer dbConnection.Close() // ignore error
+	defer utils.LogErrors(dbConnection.Close, fmt.Sprintf("error closing db connection %v", dbConnection))
 
 	// Connect to YoLink
-	yoLinkConnection, err := sensors.NewYoLinkConnection(
-		strings.TrimSpace(os.Getenv("YOLINK_UAID")),
-		strings.TrimSpace(os.Getenv("YOLINK_SECRET_KEY")),
-	)
+	yoLinkConnection, err := utils.Retry2(3, func() (*sensors.YoLinkConnection, error) {
+		return sensors.NewYoLinkConnection(
+			strings.TrimSpace(os.Getenv("YOLINK_UAID")),
+			strings.TrimSpace(os.Getenv("YOLINK_SECRET_KEY")),
+		)
+	})
 	if err != nil {
 		return fmt.Errorf("error while creating new YoLink connection: %w", err)
 	}
@@ -54,25 +57,39 @@ func run() error {
 
 	// Repeat job for 72h. Currently, this function is blocking
 	fmt.Println("Scheduling starting...")
-	scheduleJob(
-		func() {
+	err = scheduleJob(
+		func() error {
 			fmt.Println("starting")
-			storeAllConnectionSensorData(dbConnection, yoLinkConnection)
+			err = storeAllConnectionSensorData(dbConnection, yoLinkConnection)
+			if err != nil {
+				return fmt.Errorf("error while storing sensor data: %w", err)
+			}
+			return nil
 		},
 		15*time.Minute,
 	)
+	if err != nil {
+		return fmt.Errorf("error scheduling job: %w", err)
+	}
 
 	// Export
-	dbConnection.Events().Export(data.EventFilter{})
+	err = utils.Retry1(3, func() error {
+		return dbConnection.Events().Export(data.EventFilter{})
+	})
+	if err != nil {
+		return fmt.Errorf("error exporting: %w", err)
+	}
 
 	return nil
 }
 
 func storeAllConnectionSensorData(dbConnection db.DBConnection, sensorConnection sensors.SensorConnection) error {
 	// Get all devices
-	devices, err := sensorConnection.GetManagedDevices(dbConnection)
+	devices, err := utils.Retry2(3, func() (*data.IterablePaginatedData[data.StoreDevice], error) { 
+		return sensorConnection.GetManagedDevices(dbConnection)
+	})
 	if err != nil {
-		return fmt.Errorf("error while seraching for devices: %w", err)
+		return fmt.Errorf("error while searching for devices: %w", err)
 	}
 
 	for {
@@ -83,18 +100,21 @@ func storeAllConnectionSensorData(dbConnection db.DBConnection, sensorConnection
 		if device == nil {
 			break
 		}
-		fmt.Printf("device: %v\n", device.Name)
 
 		// Get device data
-		events, err := sensorConnection.GetDeviceState(device)
+		events, err := utils.Retry2(3, func() ([]data.Event, error) { 
+			return sensorConnection.GetDeviceState(device)
+		})
 		if err != nil {
-			log.Default().Output(1, fmt.Sprintf("\nerror getting events from device %v: %v\n", device, err))
+			utils.DefaultSafeLog(fmt.Sprintf("\nerror getting events from device %v: %v\n", device, err))
 		}
 		// Store device data
 		for _, event := range events {
-			err := dbConnection.Events().Add(event)
+			err = utils.Retry1(3, func() error {
+				return dbConnection.Events().Add(event)
+			})
 			if err != nil {
-				log.Default().Output(1, fmt.Sprintf("\nerror adding event to DB %v: %v\n", event, err))
+				utils.DefaultSafeLog(fmt.Sprintf("\nerror adding event to DB %v: %v\n", event, err))
 			}
 		}
 	}

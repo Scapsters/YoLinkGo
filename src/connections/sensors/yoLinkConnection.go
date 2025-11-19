@@ -6,7 +6,6 @@ import (
 	"com/data"
 	"com/utils"
 	"fmt"
-	"log"
 	"time"
 )
 
@@ -74,7 +73,10 @@ func (c *YoLinkConnection) Open() error {
 		}
 	}
 	if isTokenNearlyExpired {
-		c.refreshCurrentToken()
+		err = c.refreshCurrentToken()
+		if err != nil {
+			return fmt.Errorf("error refreshing current tokens with connection %v: %w", c, err)
+		}
 	}
 	c.accessToken = response.AccessToken
 	c.refreshToken = response.RefreshToken
@@ -176,7 +178,10 @@ func MakeYoLinkRequest[T any](c *YoLinkConnection, simpleBDDP SimpleBDDP) (*T, e
 	}
 	BDDPMap["time"] = fmt.Sprint(utils.TimeSeconds())
 
-	c.Open() // Ensure tokens are up to date
+	err = c.Open() // Ensure tokens are up to date
+	if err != nil {
+		return nil, fmt.Errorf("error while opening yoLink connection while preparing for request %v: %w", BDDPMap, err)
+	}
 	headers := map[string]string{
 		"Content-Type":  "application/json",
 		"Authorization": fmt.Sprintf("Bearer %v", c.accessToken),
@@ -216,7 +221,7 @@ func (c *YoLinkConnection) UpdateManagedDevices(dbConnection db.DBConnection) er
 
 		// Duplicates exist
 		if firstItem != nil && secondItem != nil {
-			log.Default().Output(1, fmt.Sprintf("Device with ID %v has duplicate entries!", device.DeviceID))
+			utils.DefaultSafeLog(fmt.Sprintf("Device with ID %v has duplicate entries!", device.DeviceID))
 		}
 		// Item already exists
 		if firstItem != nil {

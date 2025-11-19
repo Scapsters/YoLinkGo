@@ -31,7 +31,7 @@ func PostJson[T any](urlString string, headers map[string]string, body map[strin
 
 // Post form to url. Ensures form encoding, distinct from JSON
 func PostForm[T any](urlString string, body map[string]string) (*T, error) {
-	// Buld request
+	// Build request
 	formValues := url.Values{}
 	for k, val := range body {
 		formValues.Set(k, val)
@@ -49,9 +49,9 @@ func interpretResponse[T any](response *http.Response, err error) (*T, error) {
 		return nil, fmt.Errorf("error during request %v: %w", response, err)
 	}
 	if response.StatusCode != 200 {
-		return nil, fmt.Errorf("error during request %v: %v", response, response.Status)
+		return nil, fmt.Errorf("non-200 code received %v: %v", response, response.Status)
 	}
-	defer response.Body.Close()
+	defer LogErrors(response.Body.Close, fmt.Sprintf("Closing body %v", response.Body))
 	// Cast to type
 	var out *T
 	err = json.NewDecoder(response.Body).Decode(&out)
