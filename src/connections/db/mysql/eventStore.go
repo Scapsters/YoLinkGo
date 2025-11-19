@@ -89,23 +89,23 @@ func (store *MySQLEventStore) GetInTimeRange(filter data.EventFilter, startTime 
 	}
 	if filter.EventTimestamp != nil {
 		conditions = append(conditions, "event_timestamp = ?")
-		args = append(args, *filter.EventSourceDeviceID)
+		args = append(args, *filter.EventTimestamp)
 	}
 	if filter.FieldName != nil {
 		conditions = append(conditions, "field_name = ?")
-		args = append(args, *filter.EventSourceDeviceID)
+		args = append(args, *filter.FieldName)
 	}
 	if filter.FieldValue != nil {
 		conditions = append(conditions, "field_value = ?")
-		args = append(args, *filter.EventSourceDeviceID)
+		args = append(args, *filter.FieldValue)
 	}
 	if startTime != nil {
 		conditions = append(conditions, "event_timestamp > ?")
-		args = append(args, startTime)
+		args = append(args, *startTime)
 	}
 	if endTime != nil {
 		conditions = append(conditions, "event_timestamp < ?")
-		args = append(args, endTime)
+		args = append(args, *endTime)
 	}
 	query := "SELECT * FROM events"
 	if len(conditions) > 0 {
