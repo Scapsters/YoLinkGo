@@ -40,7 +40,7 @@ func run() error {
 			strings.TrimSpace(os.Getenv("YOLINK_UAID")),
 			strings.TrimSpace(os.Getenv("YOLINK_SECRET_KEY")),
 		)
-	})
+	}, nil)
 	if err != nil {
 		return fmt.Errorf("error while creating new YoLink connection: %w", err)
 	}
@@ -50,14 +50,14 @@ func run() error {
 	}
 
 	// Store sensor data
-	fmt.Println("Initial run starting...")
+	utils.DefaultSafeLog("Initial run starting...")
 	err = storeAllConnectionSensorData(dbConnection, yoLinkConnection)
 	if err != nil {
 		return fmt.Errorf("error while storing sensor data: %w", err)
 	}
 
 	// Repeat job for 72h. Currently, this function is blocking
-	fmt.Println("Scheduling starting...")
+	utils.DefaultSafeLog("Scheduling starting...")
 	err = scheduleJob(
 		func() error {
 			fmt.Println("starting")
@@ -76,7 +76,7 @@ func run() error {
 	// Export
 	err = utils.Retry1(3, func() error {
 		return dbConnection.Events().Export(data.EventFilter{})
-	})
+	}, nil)
 	if err != nil {
 		return fmt.Errorf("error exporting: %w", err)
 	}
@@ -88,7 +88,7 @@ func storeAllConnectionSensorData(dbConnection db.DBConnection, sensorConnection
 	// Get all devices
 	devices, err := utils.Retry2(3, func() (*data.IterablePaginatedData[data.StoreDevice], error) {
 		return sensorConnection.GetManagedDevices(dbConnection)
-	})
+	}, nil)
 	if err != nil {
 		return fmt.Errorf("error while searching for devices: %w", err)
 	}
@@ -105,7 +105,7 @@ func storeAllConnectionSensorData(dbConnection db.DBConnection, sensorConnection
 		// Get device data
 		events, err := utils.Retry2(3, func() ([]data.Event, error) {
 			return sensorConnection.GetDeviceState(device)
-		})
+		}, &[]any{sensors.ErrYoLinkAPIError})
 		if err != nil {
 			utils.DefaultSafeLog(fmt.Sprintf("\nerror getting events from device %v: %v\n", device, err))
 		}
@@ -113,7 +113,7 @@ func storeAllConnectionSensorData(dbConnection db.DBConnection, sensorConnection
 		for _, event := range events {
 			err = utils.Retry1(3, func() error {
 				return dbConnection.Events().Add(event)
-			})
+			}, nil)
 			if err != nil {
 				utils.DefaultSafeLog(fmt.Sprintf("\nerror adding event to DB %v: %v\n", event, err))
 			}

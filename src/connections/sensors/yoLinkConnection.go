@@ -13,10 +13,17 @@ import (
 
 const TOKEN_URL = "https://api.yosmart.com/open/yolink/token"
 const API_URL = "https://api.yosmart.com/open/yolink/v2/api"
-
 const TOKEN_REFRESH_BUFFER_MINUTES = 30
-
 const YOLINK_BRAND_NAME = "yolink"
+
+type YoLinkAPIError struct {
+	Code string
+	Description string
+}
+func (e *YoLinkAPIError) Error() string {
+	return fmt.Sprintf("non-00000 code from YoLink API: %v, description: %v", e.Code, e.Description)
+}
+var ErrYoLinkAPIError *YoLinkAPIError
 
 var _ SensorConnection = (*YoLinkConnection)(nil)
 
@@ -109,7 +116,10 @@ func (c *YoLinkConnection) GetDeviceState(device *data.StoreDevice) ([]data.Even
 	// Make request
 	deviceState, err := MakeYoLinkRequest[BUDP](c, SimpleBDDP{Method: YoLinkMethod(device.Kind + ".getState"), TargetDevice: &device.BrandID, Token: &device.Token})
 	if deviceState.Code != "000000" {
-		return nil, fmt.Errorf("code was non-zero: %v for device %v (name: %v) in connection %v at time %v", deviceState.Code, device.BrandID, device.Name, c, utils.TimeSeconds())
+		return nil, &YoLinkAPIError{
+			Code: deviceState.Code,
+			Description: fmt.Sprintf("device %v (name: %v) in connection %v at time %v", device.BrandID, device.Name, c, utils.TimeSeconds()),
+		}
 	}
 	if err != nil {
 		return nil, fmt.Errorf("error while quering device: %w", err)
