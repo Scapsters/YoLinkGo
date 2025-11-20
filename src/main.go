@@ -107,7 +107,7 @@ func storeAllConnectionSensorData(dbConnection db.DBConnection, sensorConnection
 			return sensorConnection.GetDeviceState(device)
 		}, []any{sensors.ErrYoLinkAPIError})
 		if err != nil {
-			utils.DefaultSafeLog(fmt.Sprintf("\nerror getting events from device %v: %v\n", device, err))
+			utils.FDefaultSafeLog("\nerror getting events from device %v: %v\n", device, err)
 		}
 		time.Sleep(10 * time.Second) //TODO: better than this
 		// Store device data
@@ -116,7 +116,7 @@ func storeAllConnectionSensorData(dbConnection db.DBConnection, sensorConnection
 				return dbConnection.Events().Add(event)
 			}, nil)
 			if err != nil {
-				utils.DefaultSafeLog(fmt.Sprintf("\nerror adding event to DB %v: %v\n", event, err))
+				utils.FDefaultSafeLog("\nerror adding event to DB %v: %v\n", event, err)
 			}
 		}
 	}
