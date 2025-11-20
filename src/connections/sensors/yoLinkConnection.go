@@ -23,7 +23,7 @@ type YoLinkAPIError struct {
 func (e *YoLinkAPIError) Error() string {
 	return fmt.Sprintf("non-00000 code from YoLink API: %v, description: %v", e.Code, e.Description)
 }
-var ErrYoLinkAPIError *YoLinkAPIError
+var ErrYoLinkAPIError *YoLinkAPIError = new(YoLinkAPIError)
 
 var _ SensorConnection = (*YoLinkConnection)(nil)
 

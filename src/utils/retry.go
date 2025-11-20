@@ -12,7 +12,7 @@ func Retry1(retryCount int, f func() error, nonRetriedErrors []any) error {
 	for range retryCount {
 		err = f()		
 		for _, errorType := range nonRetriedErrors {
-			if errors.As(err, errorType) {
+			if errors.As(err, &errorType) {
 				return err
 			}
 		}
@@ -32,7 +32,7 @@ func Retry2[T any](retryCount int, f func() (T, error), nonRetriedErrors []any) 
 	for range retryCount {
 		r1, err = f()		
 		for _, errorType := range nonRetriedErrors {
-			if errors.As(err, errorType) {
+			if errors.As(err, &errorType) {
 				return r1, err
 			}
 		}
@@ -53,7 +53,7 @@ func Retry3[T1, T2 any](retryCount int, f func() (T1, T2, error), nonRetriedErro
 	for range retryCount {
 		r1, r2, err = f()			
 		for _, errorType := range nonRetriedErrors {
-			if errors.As(err, errorType) {
+			if errors.As(err, &errorType) {
 				return r1, r2, err
 			}
 		}
