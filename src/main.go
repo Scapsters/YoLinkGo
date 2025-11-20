@@ -67,7 +67,7 @@ func run() error {
 			}
 			return nil
 		},
-		15*time.Minute,
+		20*time.Minute,
 	)
 	if err != nil {
 		return fmt.Errorf("error scheduling job: %w", err)
@@ -109,6 +109,7 @@ func storeAllConnectionSensorData(dbConnection db.DBConnection, sensorConnection
 		if err != nil {
 			utils.DefaultSafeLog(fmt.Sprintf("\nerror getting events from device %v: %v\n", device, err))
 		}
+		time.Sleep(10 * time.Second) //TODO: better than this
 		// Store device data
 		for _, event := range events {
 			err = utils.Retry1(3, func() error {

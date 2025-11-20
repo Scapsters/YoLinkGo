@@ -11,9 +11,11 @@ func Retry1(retryCount int, f func() error, nonRetriedErrors *[]any) error {
 	var err error
 	for range retryCount {
 		err = f()
-		for _, errorType := range *nonRetriedErrors {
-			if errors.As(err, errorType) {
-				return err
+		if nonRetriedErrors != nil {			
+			for _, errorType := range *nonRetriedErrors {
+				if errors.As(err, errorType) {
+					return err
+				}
 			}
 		}
 		if err == nil {
@@ -31,9 +33,11 @@ func Retry2[T any](retryCount int, f func() (T, error), nonRetriedErrors *[]any)
 	var err error
 	for range retryCount {
 		r1, err = f()
-		for _, errorType := range *nonRetriedErrors {
-			if errors.As(err, errorType) {
-				return r1, err
+		if nonRetriedErrors != nil {			
+			for _, errorType := range *nonRetriedErrors {
+				if errors.As(err, errorType) {
+					return r1, err
+				}
 			}
 		}
 		if err == nil {
@@ -52,9 +56,11 @@ func Retry3[T1, T2 any](retryCount int, f func() (T1, T2, error), nonRetriedErro
 	var err error
 	for range retryCount {
 		r1, r2, err = f()
-		for _, errorType := range *nonRetriedErrors {
-			if errors.As(err, errorType) {
-				return r1, r2, err
+		if nonRetriedErrors != nil {			
+			for _, errorType := range *nonRetriedErrors {
+				if errors.As(err, errorType) {
+					return r1, r2, err
+				}
 			}
 		}
 		if err == nil {
