@@ -105,7 +105,7 @@ func storeAllConnectionSensorData(dbConnection db.DBConnection, sensorConnection
 		// Get device data
 		events, err := utils.Retry2(3, func() ([]data.Event, error) {
 			return sensorConnection.GetDeviceState(device)
-		}, &[]any{sensors.ErrYoLinkAPIError})
+		}, []any{sensors.ErrYoLinkAPIError})
 		if err != nil {
 			utils.DefaultSafeLog(fmt.Sprintf("\nerror getting events from device %v: %v\n", device, err))
 		}
