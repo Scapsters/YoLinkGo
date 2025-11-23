@@ -39,3 +39,11 @@ type DeviceStore interface {
 type EventStore interface {
 	TimestampedDataStore[data.Event, data.StoreEvent, data.EventFilter]
 }
+
+type LogStore interface {
+	TimestampedDataStore[data.Log, data.StoreLog, data.LogFilter]
+}
+
+type JobStore interface {
+	TimestampedDataStore[data.Job, data.StoreJob, data.JobFilter]
+}
