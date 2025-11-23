@@ -3,8 +3,8 @@ package mysql
 import (
 	"com/connections/db"
 	"com/data"
-	"com/utils"
 	"com/logs"
+	"com/utils"
 	"context"
 	"database/sql"
 	"encoding/csv"

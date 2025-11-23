@@ -4,8 +4,8 @@ import (
 	"com/connections"
 	"com/connections/db"
 	"com/data"
-	"com/utils"
 	"com/logs"
+	"com/utils"
 	"context"
 	"errors"
 	"fmt"
@@ -19,12 +19,14 @@ const TOKEN_REFRESH_BUFFER_MINUTES = 30
 const YOLINK_BRAND_NAME = "yolink"
 
 type YoLinkAPIError struct {
-	Code string
+	Code        string
 	Description string
 }
+
 func (e *YoLinkAPIError) Error() string {
 	return fmt.Sprintf("non-00000 code from YoLink API: %v, description: %v", e.Code, e.Description)
 }
+
 var ErrYoLinkAPIError *YoLinkAPIError = new(YoLinkAPIError)
 
 var _ SensorConnection = (*YoLinkConnection)(nil)
@@ -122,14 +124,14 @@ func (c *YoLinkConnection) GetDeviceState(ctx context.Context, device *data.Stor
 	}
 	if deviceState.Code != "000000" {
 		return nil, &YoLinkAPIError{
-			Code: deviceState.Code,
+			Code:        deviceState.Code,
 			Description: fmt.Sprintf("device %v (name: %v) in connection %v at time %v", device.BrandID, device.Name, c, utils.TimeSeconds()),
 		}
 	}
 	if err != nil {
 		return nil, fmt.Errorf("error while quering device: %w", err)
 	}
-	
+
 	// Process response
 	dataMap, err := utils.ToMap[any](deviceState.Data)
 	if err != nil {

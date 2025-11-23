@@ -17,28 +17,29 @@ const LOG_DIR = "../logs"
 
 // Allow contexts to provide and get loggers.
 type loggerKey struct{}
+
 func WithLogger(ctx context.Context, l *JobLogger) context.Context {
-    return context.WithValue(ctx, loggerKey{}, l)
+	return context.WithValue(ctx, loggerKey{}, l)
 }
 func Logger(ctx context.Context) *JobLogger {
-    v := ctx.Value(loggerKey{})
-    if v == nil {
-        return nil
-    }
-	jobLogger, ok := v.(*JobLogger) 
-    if !ok {
+	v := ctx.Value(loggerKey{})
+	if v == nil {
+		return nil
+	}
+	jobLogger, ok := v.(*JobLogger)
+	if !ok {
 		log.Panic("Non job logger value found in job logger context key. loggerKey is package private. How?")
 	}
 	return jobLogger
 }
 
 type JobCategory string
+
 const (
 	Main   JobCategory = "MAIN"
 	Export JobCategory = "EXPORT"
 	Import JobCategory = "IMPORT"
 )
-
 
 func CreateJob(ctx context.Context, db db.DBConnection, category JobCategory) (*JobLogger, error) {
 	return createChildJob(ctx, db, category, nil)
@@ -51,10 +52,10 @@ func createChildJob(ctx context.Context, db db.DBConnection, category JobCategor
 		parentJobID = parentJobLogger.jobID
 	}
 	id, err := db.Jobs().Add(ctx, data.Job{
-		ParentID: parentJobID,
-		Category: string(category),
+		ParentID:       parentJobID,
+		Category:       string(category),
 		StartTimestamp: timestamp,
-		EndTimestamp: 0,
+		EndTimestamp:   0,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("unable to create job under ctx %v and category %v with connection %v: %w", ctx, category, db, err)
@@ -63,7 +64,7 @@ func createChildJob(ctx context.Context, db db.DBConnection, category JobCategor
 	// Create log file
 	timestampDate := time.Unix(timestamp, 0).Format("2006-01-02_15-04-05")
 	filename := fmt.Sprintf(
-		"%s/%s_job_log_%v.csv", 
+		"%s/%s_job_log_%v.csv",
 		LOG_DIR,
 		timestampDate,
 		id,
@@ -76,24 +77,25 @@ func createChildJob(ctx context.Context, db db.DBConnection, category JobCategor
 
 	// Return logger
 	return &JobLogger{
-		db: db,
-		jobID: id,
-		fileMutex: &sync.Mutex{},
-		timestamp: timestamp,
-		filename: filename,
+		db:              db,
+		jobID:           id,
+		fileMutex:       &sync.Mutex{},
+		timestamp:       timestamp,
+		filename:        filename,
 		parentJobLogger: parentJobLogger,
 	}, nil
 }
 
 // Logs to the database, a file, and to stdout.
 type JobLogger struct {
-	db						db.DBConnection	
-	jobID                   string
-	fileMutex               *sync.Mutex
-	filename				string
-	parentJobLogger			*JobLogger
-	timestamp				int64
+	db              db.DBConnection
+	jobID           string
+	fileMutex       *sync.Mutex
+	filename        string
+	parentJobLogger *JobLogger
+	timestamp       int64
 }
+
 func (l *JobLogger) Debug(ctx context.Context, fstring string, args ...any) {
 	l.log(ctx, 4, fstring, args...)
 }
@@ -160,7 +162,7 @@ func (l *JobLogger) logToFileAndParentFiles(ctx context.Context, stringToLog str
 		FDefaultLog("error creating or opening export file: %v", err)
 	}
 	defer LogErrorsWithContext(ctx, f.Close, fmt.Sprintf("error closing file %v", l.filename))
-	
+
 	// Write to file
 	l.fileMutex.Lock()
 	defer l.fileMutex.Unlock()

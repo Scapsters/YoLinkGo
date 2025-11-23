@@ -17,6 +17,7 @@ func LogErrors(function func() error, description string) {
 		FDefaultLog("error while calling function with description: %v: %v", description, err)
 	}
 }
+
 // For low-risk function calls that would be cumbersome to deal with otherwise, such as connection closing calls in defer statements.
 func LogErrorsWithContext(ctx context.Context, function func() error, description string) {
 	if function == nil {
@@ -48,20 +49,23 @@ func LogWithContext(ctx context.Context, level int, fstring string, args ...any)
 		logger.Debug(ctx, fstring, args...)
 	}
 }
+
 // Create a debug log.
 func DebugWithContext(ctx context.Context, fstring string, args ...any) {
 	LogWithContext(ctx, 4, fstring, args...)
 }
+
 // Create an info log.
 func InfoWithContext(ctx context.Context, fstring string, args ...any) {
 	LogWithContext(ctx, 3, fstring, args...)
 }
+
 // Create a warning log.
 func WarnWithContext(ctx context.Context, fstring string, args ...any) {
 	LogWithContext(ctx, 2, fstring, args...)
 }
+
 // Create a error log.
 func ErrorWithContext(ctx context.Context, fstring string, args ...any) {
 	LogWithContext(ctx, 1, fstring, args...)
 }
-
