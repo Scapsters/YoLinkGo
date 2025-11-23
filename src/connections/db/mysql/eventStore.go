@@ -259,14 +259,14 @@ func (store *MySQLEventStore) ExportInTimeRange(filter data.EventFilter, startTi
 	// Get data
 	events, err := store.GetInTimeRange(filter, startTime, endTime)
 	if err != nil {
-		return fmt.Errorf("error getting devices for export with filter %v: %w", filter, err)
+		return fmt.Errorf("error getting events for export with filter %v: %w", filter, err)
 	}
 
 	// Write each row
 	for {
 		event, err := events.Next()
 		if err != nil {
-			utils.DefaultSafeLog(fmt.Sprintf("Error while fetching device while exporting: %v", err))
+			utils.DefaultSafeLog(fmt.Sprintf("Error while fetching event while exporting: %v", err))
 		}
 		if event == nil {
 			break
