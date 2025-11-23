@@ -115,6 +115,9 @@ func (c *YoLinkConnection) GetDeviceState(device *data.StoreDevice) ([]data.Even
 	}
 	// Make request
 	deviceState, err := MakeYoLinkRequest[BUDP](c, SimpleBDDP{Method: YoLinkMethod(device.Kind + ".getState"), TargetDevice: &device.BrandID, Token: &device.Token})
+	if deviceState == nil {
+		return nil, errors.New("YoLink request was malformed and could not be read")
+	}
 	if deviceState.Code != "000000" {
 		return nil, &YoLinkAPIError{
 			Code: deviceState.Code,
@@ -124,6 +127,7 @@ func (c *YoLinkConnection) GetDeviceState(device *data.StoreDevice) ([]data.Even
 	if err != nil {
 		return nil, fmt.Errorf("error while quering device: %w", err)
 	}
+	
 	// Process response
 	dataMap, err := utils.ToMap[any](deviceState.Data)
 	if err != nil {
