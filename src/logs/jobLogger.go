@@ -18,7 +18,7 @@ const LOG_DIR = "../logs"
 // Allow contexts to provide and get loggers.
 type loggerKey struct{}
 
-func WithLogger(ctx context.Context, l *JobLogger) context.Context {
+func ContextWithLogger(ctx context.Context, l *JobLogger) context.Context {
 	return context.WithValue(ctx, loggerKey{}, l)
 }
 func Logger(ctx context.Context) *JobLogger {
@@ -111,7 +111,6 @@ func (l *JobLogger) Error(ctx context.Context, fstring string, args ...any) {
 func (l *JobLogger) CreateChildJob(ctx context.Context, category JobCategory) (*JobLogger, error) {
 	return createChildJob(ctx, l.db, category, l)
 }
-
 func (l *JobLogger) log(ctx context.Context, level int, fstring string, args ...any) {
 	// Create entry
 	stackBuffer := make([]byte, 64*1024)

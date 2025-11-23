@@ -42,7 +42,7 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("error while creating job: %w", err)
 	}
-	ctx = logs.WithLogger(ctx, jobLogger)
+	ctx = logs.ContextWithLogger(ctx, jobLogger)
 
 	// Connect to YoLink
 	yoLinkConnection, err := utils.Retry2(3, func() (*sensors.YoLinkConnection, error) {
