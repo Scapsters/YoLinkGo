@@ -2,27 +2,30 @@ package utils
 
 import (
 	"bytes"
+	"com/logs"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
-const requestTimeout = 5
+const requestTimeout = 5 * time.Second
 
 // Post form to url. Ensures JSON encoding, distinct from forms.
-func PostJson[T any](urlString string, headers map[string]string, body map[string]any) (*T, error) {
+func PostJson[T any](ctx context.Context, urlString string, headers map[string]string, body map[string]any) (*T, error) {
 	// Buld request
 	bodyJson, err := json.Marshal(body)
 	if err != nil {
 		return nil, fmt.Errorf("error while marshalling %v: %w", body, err)
 	}
 	bodyBytes := bytes.NewBuffer(bodyJson)
-	context, cancel := TimeoutContext(requestTimeout)
+	reqctx, cancel := context.WithTimeout(ctx, requestTimeout)
 	defer cancel()
 	request, err := http.NewRequestWithContext(
-		context,
+		reqctx,
 		http.MethodPost,
 		urlString,
 		bodyBytes,
@@ -36,20 +39,21 @@ func PostJson[T any](urlString string, headers map[string]string, body map[strin
 
 	// Do request
 	client := &http.Client{}
-	return interpretResponse[T](client.Do(request))
+	response, err := client.Do(request)
+	return interpretResponse[T](ctx, response, err)
 }
 
 // Post form to url. Ensures form encoding, distinct from JSON.
-func PostForm[T any](urlString string, body map[string]string) (*T, error) {
+func PostForm[T any](ctx context.Context, urlString string, body map[string]string) (*T, error) {
 	// Build request
 	formValues := url.Values{}
 	for k, val := range body {
 		formValues.Set(k, val)
 	}
-	context, cancel := TimeoutContext(requestTimeout)
+	reqctx, cancel := context.WithTimeout(ctx, requestTimeout)
 	defer cancel()
 	request, err := http.NewRequestWithContext(
-		context,
+		reqctx,
 		http.MethodPost,
 		urlString,
 		strings.NewReader(formValues.Encode()),
@@ -61,10 +65,11 @@ func PostForm[T any](urlString string, body map[string]string) (*T, error) {
 
 	// Do request
 	client := &http.Client{}
-	return interpretResponse[T](client.Do(request))
+	response, err := client.Do(request)
+	return interpretResponse[T](ctx, response, err)
 }
 
-func interpretResponse[T any](response *http.Response, err error) (*T, error) {
+func interpretResponse[T any](ctx context.Context, response *http.Response, err error) (*T, error) {
 	// Check statuses
 	if err != nil {
 		return nil, fmt.Errorf("error during request %v: %w", response, err)
@@ -73,7 +78,7 @@ func interpretResponse[T any](response *http.Response, err error) (*T, error) {
 	if response.StatusCode != OKStatus {
 		return nil, fmt.Errorf("non-200 code received %v: %v", response, response.Status)
 	}
-	defer LogErrors(response.Body.Close, fmt.Sprintf("Closing body %v", response.Body))
+	defer logs.LogErrorsWithContext(ctx, response.Body.Close, fmt.Sprintf("Closing body %v", response.Body))
 	// Cast to type
 	var out *T
 	err = json.NewDecoder(response.Body).Decode(&out)

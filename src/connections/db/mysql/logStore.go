@@ -3,7 +3,8 @@ package mysql
 import (
 	"com/connections/db"
 	"com/data"
-	"com/utils"
+	"com/logs"
+	"context"
 	"database/sql"
 	"encoding/csv"
 	"fmt"
@@ -21,9 +22,10 @@ type MySQLLogStore struct {
 	DB *sql.DB
 }
 
-func (store *MySQLLogStore) Add(item data.Log) error {
-	context, cancel := utils.TimeoutContext(requestTimeout)
+func (store *MySQLLogStore) Add(ctx context.Context, item data.Log) (string, error) {
+	context, cancel := context.WithTimeout(ctx, RequestTimeout)
 	defer cancel()
+	id := uuidv7.New().String() // MySQL does not support uuidv7 and is notably slower
 	_, err := store.DB.ExecContext(context,
 		`
 			INSERT INTO logs (
@@ -35,7 +37,7 @@ func (store *MySQLLogStore) Add(item data.Log) error {
 				log_timestamp
 			) VALUES (?, ?, ?, ?, ?, ?)
 		`,
-		uuidv7.New().String(), // MySQL does not support uuidv7 and is notably slower
+		id,
 		item.JobID,
 		item.Level,
 		item.StackTrace,
@@ -43,12 +45,12 @@ func (store *MySQLLogStore) Add(item data.Log) error {
 		item.Timestamp,
 	)
 	if err != nil {
-		return fmt.Errorf("error while adding %v to log store: %w", item, err)
+		return "", fmt.Errorf("error while adding %v to log store: %w", item, err)
 	}
-	return nil
+	return id, nil
 }
-func (store *MySQLLogStore) Delete(storeItem data.StoreLog) error {
-	context, cancel := utils.TimeoutContext(requestTimeout)
+func (store *MySQLLogStore) Delete(ctx context.Context, storeItem data.StoreLog) error {
+	context, cancel := context.WithTimeout(ctx, RequestTimeout)
 	defer cancel()
 	response, err := store.DB.ExecContext(
 		context,
@@ -67,10 +69,10 @@ func (store *MySQLLogStore) Delete(storeItem data.StoreLog) error {
 	}
 	return nil
 }
-func (store *MySQLLogStore) Get(filter data.LogFilter) (*data.IterablePaginatedData[data.StoreLog], error) {
-	return store.GetInTimeRange(filter, nil, nil)
+func (store *MySQLLogStore) Get(ctx context.Context, filter data.LogFilter) (*data.IterablePaginatedData[data.StoreLog], error) {
+	return store.GetInTimeRange(ctx, filter, nil, nil)
 }
-func (store *MySQLLogStore) GetInTimeRange(filter data.LogFilter, startTime *int64, endTime *int64) (*data.IterablePaginatedData[data.StoreLog], error) {
+func (store *MySQLLogStore) GetInTimeRange(ctx context.Context, filter data.LogFilter, startTime *int64, endTime *int64) (*data.IterablePaginatedData[data.StoreLog], error) {
 	// Build conditions
 	args := []any{}
 	conditions := []string{}
@@ -119,18 +121,18 @@ func (store *MySQLLogStore) GetInTimeRange(filter data.LogFilter, startTime *int
 	}
 	query += "log_id > ? ORDER BY log_id LIMIT ?"
 
-	getPage := func(lastID *string) ([]data.StoreLog, *string, error) {
+	getPage := func(ctx context.Context, lastID *string) ([]data.StoreLog, *string, error) {
 		var filterID string
 		if lastID != nil {
 			filterID = *lastID
 		}
-		context, cancel := utils.TimeoutContext(requestTimeout)
+		context, cancel := context.WithTimeout(ctx, RequestTimeout)
 		defer cancel()
 		rows, err := store.DB.QueryContext(context, query, append(args, filterID, data.PAGE_SIZE)...)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error querying logs with filter %v: %w", filter, err)
 		}
-		defer utils.LogErrors(rows.Close, fmt.Sprintf("error closing rows for query %v and lastID %v", query, lastID))
+		defer logs.LogErrorsWithContext(ctx, rows.Close, fmt.Sprintf("error closing rows for query %v and lastID %v", query, lastID))
 
 		var logs []data.StoreLog
 		for rows.Next() {
@@ -161,36 +163,37 @@ func (store *MySQLLogStore) GetInTimeRange(filter data.LogFilter, startTime *int
 
 	return &data.IterablePaginatedData[data.StoreLog]{GetPage: getPage}, nil
 }
-func (store *MySQLLogStore) Setup(isDestructive bool) error {
+func (store *MySQLLogStore) Setup(ctx context.Context, isDestructive bool) error {
 	if isDestructive {
-		context, cancel := utils.TimeoutContext(requestTimeout)
+		sqlctx, cancel := context.WithTimeout(ctx, RequestTimeout)
 		defer cancel()
-		_, err := store.DB.ExecContext(context, `SET FOREIGN_KEY_CHECKS = 0`)
+		_, err := store.DB.ExecContext(sqlctx, `SET FOREIGN_KEY_CHECKS = 0`)
 		if err != nil {
 			return fmt.Errorf("error disabling FK checks: %w", err)
 		}
-		context, cancel = utils.TimeoutContext(requestTimeout)
+		sqlctx, cancel = context.WithTimeout(ctx, RequestTimeout)
 		defer cancel()
-		_, err = store.DB.ExecContext(context, `DROP TABLE IF EXISTS logs`)
+		_, err = store.DB.ExecContext(sqlctx, `DROP TABLE IF EXISTS logs`)
 		if err != nil {
 			return fmt.Errorf("error dropping logs table: %w", err)
 		}
-		context, cancel = utils.TimeoutContext(requestTimeout)
+		sqlctx, cancel = context.WithTimeout(ctx, RequestTimeout)
 		defer cancel()
-		_, err = store.DB.ExecContext(context, `SET FOREIGN_KEY_CHECKS = 1`)
+		_, err = store.DB.ExecContext(sqlctx, `SET FOREIGN_KEY_CHECKS = 1`)
 		if err != nil {
 			return fmt.Errorf("error enabling FK checks: %w", err)
 		}
 	}
-	context, cancel := utils.TimeoutContext(requestTimeout)
+	sqlctx, cancel := context.WithTimeout(ctx, RequestTimeout)
 	defer cancel()
-	_, err := store.DB.ExecContext(context, `		
+	_, err := store.DB.ExecContext(sqlctx, `		
 		CREATE TABLE IF NOT EXISTS logs (
 			log_id 			VARCHAR(36) NOT NULL,
 			job_id 			VARCHAR(36) NOT NULL,
 			log_level 		INT			NOT NULL,
 			log_stack_trace TEXT 		NOT NULL,
-			log_description TINYTEXT	NOT NULL
+			log_description TEXT		NOT NULL,
+			log_timestamp   BIGINT		NOT NULL
 		) ENGINE = InnoDB;
 	`)
 	if err != nil {
@@ -198,10 +201,10 @@ func (store *MySQLLogStore) Setup(isDestructive bool) error {
 	}
 	return nil
 }
-func (store *MySQLLogStore) Export(filter data.LogFilter) error {
-	return store.ExportInTimeRange(filter, nil, nil)
+func (store *MySQLLogStore) Export(ctx context.Context, filter data.LogFilter) error {
+	return store.ExportInTimeRange(ctx, filter, nil, nil)
 }
-func (store *MySQLLogStore) ExportInTimeRange(filter data.LogFilter, startTime *int64, endTime *int64) error {
+func (store *MySQLLogStore) ExportInTimeRange(ctx context.Context, filter data.LogFilter, startTime *int64, endTime *int64) error {
 	// Ensure exports directory exists
 	var OwnerReadWriteExecuteAndOthersReadExecute = 0755
 	err := os.MkdirAll(db.EXPORT_DIR, os.FileMode(OwnerReadWriteExecuteAndOthersReadExecute))
@@ -217,7 +220,7 @@ func (store *MySQLLogStore) ExportInTimeRange(filter data.LogFilter, startTime *
 	if err != nil {
 		return fmt.Errorf("error creating export file: %w", err)
 	}
-	defer utils.LogErrors(f.Close, fmt.Sprintf("error closing file %v", filename))
+	defer logs.LogErrorsWithContext(ctx, f.Close, fmt.Sprintf("error closing file %v", filename))
 
 	w := csv.NewWriter(f)
 	defer w.Flush()
@@ -236,16 +239,16 @@ func (store *MySQLLogStore) ExportInTimeRange(filter data.LogFilter, startTime *
 	}
 
 	// Get data
-	logs, err := store.GetInTimeRange(filter, startTime, endTime)
+	entries, err := store.GetInTimeRange(ctx, filter, startTime, endTime)
 	if err != nil {
 		return fmt.Errorf("error getting logs for export with filter %v: %w", filter, err)
 	}
 
 	// Write each row
 	for {
-		log, err := logs.Next()
+		log, err := entries.Next(ctx)
 		if err != nil {
-			utils.DefaultSafeLog(fmt.Sprintf("Error while fetching log while exporting: %v", err))
+			logs.ErrorWithContext(ctx, "Error while fetching log while exporting: %v", err)
 		}
 		if log == nil {
 			break
@@ -254,13 +257,13 @@ func (store *MySQLLogStore) ExportInTimeRange(filter data.LogFilter, startTime *
 		err = w.Write([]string{
 			log.ID,
 			log.JobID,
-			fmt.Sprint(log.Level),
+			strconv.Itoa(log.Level),
 			log.StackTrace,
 			log.Description,
 			strconv.FormatInt(log.Timestamp, 10),
 		})
 		if err != nil {
-			utils.DefaultSafeLog(fmt.Sprintf("Error while writing csv row with data %v: %v", log, err))
+			logs.ErrorWithContext(ctx, "Error while writing csv row with data %v: %v", log, err)
 		}
 	}
 

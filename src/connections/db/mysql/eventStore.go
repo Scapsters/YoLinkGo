@@ -4,6 +4,8 @@ import (
 	"com/connections/db"
 	"com/data"
 	"com/utils"
+	"com/logs"
+	"context"
 	"database/sql"
 	"encoding/csv"
 	"fmt"
@@ -20,10 +22,11 @@ type MySQLEventStore struct {
 	DB *sql.DB
 }
 
-func (store *MySQLEventStore) Add(item data.Event) error {
-	context, cancel := utils.TimeoutContext(requestTimeout)
+func (store *MySQLEventStore) Add(ctx context.Context, item data.Event) (string, error) {
+	sqlctx, cancel := context.WithTimeout(ctx, RequestTimeout)
 	defer cancel()
-	_, err := store.DB.ExecContext(context,
+	id := uuidv7.New().String() // MySQL does not support uuidv7 and is notably slower
+	_, err := store.DB.ExecContext(sqlctx,
 		`
 			INSERT INTO events (
 				event_id,
@@ -35,7 +38,7 @@ func (store *MySQLEventStore) Add(item data.Event) error {
 				field_value
 			) VALUES (?, ?, ?, ?, ?, ?, ?)
 		`,
-		uuidv7.New().String(), // MySQL does not support uuidv7 and is notably slower
+		id,
 		item.RequestDeviceID,
 		item.EventSourceDeviceID,
 		item.ResponseTimestamp,
@@ -44,15 +47,15 @@ func (store *MySQLEventStore) Add(item data.Event) error {
 		item.FieldValue,
 	)
 	if err != nil {
-		return fmt.Errorf("error while adding %v to event store: %w", item, err)
+		return "", fmt.Errorf("error while adding %v to event store: %w", item, err)
 	}
-	return nil
+	return id, nil
 }
-func (store *MySQLEventStore) Delete(storeItem data.StoreEvent) error {
-	context, cancel := utils.TimeoutContext(requestTimeout)
+func (store *MySQLEventStore) Delete(ctx context.Context, storeItem data.StoreEvent) error {
+	sqlctx, cancel := context.WithTimeout(ctx, RequestTimeout)
 	defer cancel()
 	response, err := store.DB.ExecContext(
-		context,
+		sqlctx,
 		`DELETE FROM events WHERE (event_id = ?)`,
 		storeItem.ID,
 	)
@@ -68,10 +71,10 @@ func (store *MySQLEventStore) Delete(storeItem data.StoreEvent) error {
 	}
 	return nil
 }
-func (store *MySQLEventStore) Get(filter data.EventFilter) (*data.IterablePaginatedData[data.StoreEvent], error) {
-	return store.GetInTimeRange(filter, nil, nil)
+func (store *MySQLEventStore) Get(ctx context.Context, filter data.EventFilter) (*data.IterablePaginatedData[data.StoreEvent], error) {
+	return store.GetInTimeRange(ctx, filter, nil, nil)
 }
-func (store *MySQLEventStore) GetInTimeRange(filter data.EventFilter, startTime *int64, endTime *int64) (*data.IterablePaginatedData[data.StoreEvent], error) {
+func (store *MySQLEventStore) GetInTimeRange(ctx context.Context, filter data.EventFilter, startTime *int64, endTime *int64) (*data.IterablePaginatedData[data.StoreEvent], error) {
 	// Build conditions
 	args := []any{}
 	conditions := []string{}
@@ -124,18 +127,18 @@ func (store *MySQLEventStore) GetInTimeRange(filter data.EventFilter, startTime 
 	}
 	query += "event_id > ? ORDER BY event_id LIMIT ?"
 
-	getPage := func(lastID *string) ([]data.StoreEvent, *string, error) {
+	getPage := func(ctx context.Context, lastID *string) ([]data.StoreEvent, *string, error) {
 		var filterID string
 		if lastID != nil {
 			filterID = *lastID
 		}
-		context, cancel := utils.TimeoutContext(requestTimeout)
+		sqlctx, cancel := context.WithTimeout(ctx, RequestTimeout)
 		defer cancel()
-		rows, err := store.DB.QueryContext(context, query, append(args, filterID, data.PAGE_SIZE)...)
+		rows, err := store.DB.QueryContext(sqlctx, query, append(args, filterID, data.PAGE_SIZE)...)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error querying events with filter %v: %w", filter, err)
 		}
-		defer utils.LogErrors(rows.Close, fmt.Sprintf("error closing rows for query %v and lastID %v", query, lastID))
+		defer logs.LogErrorsWithContext(ctx, rows.Close, fmt.Sprintf("error closing rows for query %v and lastID %v", query, lastID))
 
 		var events []data.StoreEvent
 		for rows.Next() {
@@ -167,30 +170,30 @@ func (store *MySQLEventStore) GetInTimeRange(filter data.EventFilter, startTime 
 
 	return &data.IterablePaginatedData[data.StoreEvent]{GetPage: getPage}, nil
 }
-func (store *MySQLEventStore) Setup(isDestructive bool) error {
+func (store *MySQLEventStore) Setup(ctx context.Context, isDestructive bool) error {
 	if isDestructive {
-		context, cancel := utils.TimeoutContext(requestTimeout)
+		sqlctx, cancel := context.WithTimeout(ctx, RequestTimeout)
 		defer cancel()
-		_, err := store.DB.ExecContext(context, `SET FOREIGN_KEY_CHECKS = 0`)
+		_, err := store.DB.ExecContext(sqlctx, `SET FOREIGN_KEY_CHECKS = 0`)
 		if err != nil {
 			return fmt.Errorf("error disabling FK checks: %w", err)
 		}
-		context, cancel = utils.TimeoutContext(requestTimeout)
+		sqlctx, cancel = context.WithTimeout(ctx, RequestTimeout)
 		defer cancel()
-		_, err = store.DB.ExecContext(context, `DROP TABLE IF EXISTS events`)
+		_, err = store.DB.ExecContext(sqlctx, `DROP TABLE IF EXISTS events`)
 		if err != nil {
 			return fmt.Errorf("error dropping events table: %w", err)
 		}
-		context, cancel = utils.TimeoutContext(requestTimeout)
+		sqlctx, cancel = context.WithTimeout(ctx, RequestTimeout)
 		defer cancel()
-		_, err = store.DB.ExecContext(context, `SET FOREIGN_KEY_CHECKS = 1`)
+		_, err = store.DB.ExecContext(sqlctx, `SET FOREIGN_KEY_CHECKS = 1`)
 		if err != nil {
 			return fmt.Errorf("error enabling FK checks: %w", err)
 		}
 	}
-	context, cancel := utils.TimeoutContext(requestTimeout)
+	sqlctx, cancel := context.WithTimeout(ctx, RequestTimeout)
 	defer cancel()
-	_, err := store.DB.ExecContext(context, `		
+	_, err := store.DB.ExecContext(sqlctx, `		
 		CREATE TABLE IF NOT EXISTS events (
 			event_id VARCHAR(36) NOT NULL,
 
@@ -218,10 +221,10 @@ func (store *MySQLEventStore) Setup(isDestructive bool) error {
 	}
 	return nil
 }
-func (store *MySQLEventStore) Export(filter data.EventFilter) error {
-	return store.ExportInTimeRange(filter, nil, nil)
+func (store *MySQLEventStore) Export(ctx context.Context, filter data.EventFilter) error {
+	return store.ExportInTimeRange(ctx, filter, nil, nil)
 }
-func (store *MySQLEventStore) ExportInTimeRange(filter data.EventFilter, startTime *int64, endTime *int64) error {
+func (store *MySQLEventStore) ExportInTimeRange(ctx context.Context, filter data.EventFilter, startTime *int64, endTime *int64) error {
 	// Ensure exports directory exists
 	var OwnerReadWriteExecuteAndOthersReadExecute = 0755
 	err := os.MkdirAll(db.EXPORT_DIR, os.FileMode(OwnerReadWriteExecuteAndOthersReadExecute))
@@ -237,7 +240,7 @@ func (store *MySQLEventStore) ExportInTimeRange(filter data.EventFilter, startTi
 	if err != nil {
 		return fmt.Errorf("error creating export file: %w", err)
 	}
-	defer utils.LogErrors(f.Close, fmt.Sprintf("error closing file %v", filename))
+	defer logs.LogErrorsWithContext(ctx, f.Close, fmt.Sprintf("error closing file %v", filename))
 
 	w := csv.NewWriter(f)
 	defer w.Flush()
@@ -257,16 +260,16 @@ func (store *MySQLEventStore) ExportInTimeRange(filter data.EventFilter, startTi
 	}
 
 	// Get data
-	events, err := store.GetInTimeRange(filter, startTime, endTime)
+	events, err := store.GetInTimeRange(ctx, filter, startTime, endTime)
 	if err != nil {
 		return fmt.Errorf("error getting events for export with filter %v: %w", filter, err)
 	}
 
 	// Write each row
 	for {
-		event, err := events.Next()
+		event, err := events.Next(ctx)
 		if err != nil {
-			utils.DefaultSafeLog(fmt.Sprintf("Error while fetching event while exporting: %v", err))
+			logs.ErrorWithContext(ctx, "Error while fetching event while exporting: %v", err)
 		}
 		if event == nil {
 			break
@@ -282,7 +285,7 @@ func (store *MySQLEventStore) ExportInTimeRange(filter data.EventFilter, startTi
 			event.FieldValue,
 		})
 		if err != nil {
-			utils.DefaultSafeLog(fmt.Sprintf("Error while writing csv row with data %v: %v", event, err))
+			logs.ErrorWithContext(ctx, "Error while writing csv row with data %v: %v", event, err)
 		}
 	}
 

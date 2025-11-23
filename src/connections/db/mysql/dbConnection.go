@@ -3,68 +3,85 @@ package mysql
 import (
 	"com/connections"
 	"com/connections/db"
-	"com/utils"
+	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 )
 
 const DatabaseName = "yolinktesting"
-const requestTimeout = 60 // TODO: look into how long a big request might take
+const RequestTimeout = 60 * time.Second // TODO: look into how long a big request might take
 
 var _ db.DBConnection = (*MySQLConnection)(nil)
 
 type MySQLConnection struct {
 	connectionString string
+	db               *sql.DB
 	eventStore       db.EventStore
 	deviceStore      db.DeviceStore
-	db               *sql.DB
+	jobStore         db.JobStore
+	logStore         db.LogStore
 }
 
 // connectionString excludes the database name and includes the slash at the end.
-func NewMySQLConnection(connectionString string, isSetupDestructive bool) (*MySQLConnection, error) {
+func NewMySQLConnection(ctx context.Context, connectionString string, isSetupDestructive bool) (*MySQLConnection, error) {
 	mySQL := &MySQLConnection{connectionString: connectionString}
-	err := mySQL.Open()
+	err := mySQL.Open(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error while connecting to MySQL server: %w", err)
 	}
-	context, cancel := utils.TimeoutContext(requestTimeout)
+	sqlctx, cancel := context.WithTimeout(ctx, RequestTimeout)
 	defer cancel()
-	_, err = mySQL.DB().ExecContext(context, fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s`", DatabaseName))
+	_, err = mySQL.DB().ExecContext(sqlctx, fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s`", DatabaseName))
 	if err != nil {
 		return nil, fmt.Errorf("error while creating database: %w", err)
 	}
 
 	db := &MySQLConnection{connectionString: connectionString + DatabaseName}
-	err = db.Open()
+	err = db.Open(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error while connecting to database: %w", err)
 	}
 
 	// Create stores
 	devices := MySQLDeviceStore{DB: db.DB()}
-	err = devices.Setup(isSetupDestructive)
+	err = devices.Setup(ctx, isSetupDestructive)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up devices: %w", err)
 	}
-	db.SetDevices(&devices)
+	db.deviceStore = &devices
 
 	events := MySQLEventStore{DB: db.DB()}
-	err = events.Setup(isSetupDestructive)
+	err = events.Setup(ctx, isSetupDestructive)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up events: %w", err)
 	}
-	db.SetEvents(&events)
+	db.eventStore = &events
+
+	jobs := MySQLJobStore{DB: db.DB()}
+	err = jobs.Setup(ctx, isSetupDestructive)
+	if err != nil {
+		return nil, fmt.Errorf("error setting up events: %w", err)
+	}
+	db.jobStore = &jobs
+
+	logs := MySQLLogStore{DB: db.DB()}
+	err = logs.Setup(ctx, isSetupDestructive)
+	if err != nil {
+		return nil, fmt.Errorf("error setting up events: %w", err)
+	}
+	db.logStore = &logs
 
 	return db, nil
 }
-func (manager *MySQLConnection) Open() error {
+func (manager *MySQLConnection) Open(ctx context.Context) error {
 	db, err := sql.Open("mysql", manager.connectionString)
 	if err != nil {
 		return fmt.Errorf("error opening to MySQL via connection string %v: %w", manager.connectionString, err)
 	}
-	context, cancel := utils.TimeoutContext(requestTimeout)
+	context, cancel := context.WithTimeout(ctx, RequestTimeout)
 	defer cancel()
 	err = db.PingContext(context)
 	if err != nil {
@@ -80,11 +97,11 @@ func (manager *MySQLConnection) Close() error {
 	}
 	return nil
 }
-func (manager *MySQLConnection) Status() (connections.PingResult, string) {
+func (manager *MySQLConnection) Status(ctx context.Context) (connections.PingResult, string) {
 	if manager.db == nil {
 		return connections.Bad, "db is nil"
 	}
-	context, cancel := utils.TimeoutContext(requestTimeout)
+	context, cancel := context.WithTimeout(ctx, RequestTimeout)
 	defer cancel()
 	err := manager.db.PingContext(context)
 	if err != nil {
@@ -92,18 +109,18 @@ func (manager *MySQLConnection) Status() (connections.PingResult, string) {
 	}
 	return connections.Good, ""
 }
+func (manager *MySQLConnection) DB() *sql.DB {
+	return manager.db
+}
 func (manager *MySQLConnection) Devices() db.DeviceStore {
 	return manager.deviceStore
 }
 func (manager *MySQLConnection) Events() db.EventStore {
 	return manager.eventStore
 }
-func (manager *MySQLConnection) DB() *sql.DB {
-	return manager.db
+func (manager *MySQLConnection) Jobs() db.JobStore {
+	return manager.jobStore
 }
-func (manager *MySQLConnection) SetDevices(deviceStore db.DeviceStore) {
-	manager.deviceStore = deviceStore
-}
-func (manager *MySQLConnection) SetEvents(eventStore db.EventStore) {
-	manager.eventStore = eventStore
+func (manager *MySQLConnection) Logs() db.LogStore {
+	return manager.logStore
 }

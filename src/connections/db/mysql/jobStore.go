@@ -4,6 +4,8 @@ import (
 	"com/connections/db"
 	"com/data"
 	"com/utils"
+	"com/logs"
+	"context"
 	"database/sql"
 	"encoding/csv"
 	"fmt"
@@ -20,33 +22,36 @@ type MySQLJobStore struct {
 	DB *sql.DB
 }
 
-func (store *MySQLJobStore) Add(item data.Job) error {
-	context, cancel := utils.TimeoutContext(requestTimeout)
+func (store *MySQLJobStore) Add(ctx context.Context, item data.Job) (string, error) {
+	sqlctx, cancel := context.WithTimeout(ctx, RequestTimeout)
 	defer cancel()
-	_, err := store.DB.ExecContext(context,
+	id := uuidv7.New().String() // MySQL does not support uuidv7 and is notably slower
+	_, err := store.DB.ExecContext(sqlctx,
 		`
 			INSERT INTO jobs (
 				job_id,
+				parent_job_id,
 				job_category,
 				job_start_timestamp,
 				job_end_timestamp
-			) VALUES (?, ?, ?, ?)
+			) VALUES (?, ?, ?, ?, ?)
 		`,
-		uuidv7.New().String(), // MySQL does not support uuidv7 and is notably slower
+		id,
+		item.ParentID,
 		item.Category,
 		item.StartTimestamp,
 		item.EndTimestamp,
 	)
 	if err != nil {
-		return fmt.Errorf("error while adding %v to job store: %w", item, err)
+		return "", fmt.Errorf("error while adding %v to job store: %w", item, err)
 	}
-	return nil
+	return id, nil
 }
-func (store *MySQLJobStore) Delete(storeItem data.StoreJob) error {
-	context, cancel := utils.TimeoutContext(requestTimeout)
+func (store *MySQLJobStore) Delete(ctx context.Context, storeItem data.StoreJob) error {
+	sqlctx, cancel := context.WithTimeout(ctx, RequestTimeout)
 	defer cancel()
 	response, err := store.DB.ExecContext(
-		context,
+		sqlctx,
 		`DELETE FROM jobs WHERE (job_id = ?)`,
 		storeItem.ID,
 	)
@@ -62,16 +67,20 @@ func (store *MySQLJobStore) Delete(storeItem data.StoreJob) error {
 	}
 	return nil
 }
-func (store *MySQLJobStore) Get(filter data.JobFilter) (*data.IterablePaginatedData[data.StoreJob], error) {
-	return store.GetInTimeRange(filter, nil, nil)
+func (store *MySQLJobStore) Get(ctx context.Context, filter data.JobFilter) (*data.IterablePaginatedData[data.StoreJob], error) {
+	return store.GetInTimeRange(ctx, filter, nil, nil)
 }
-func (store *MySQLJobStore) GetInTimeRange(filter data.JobFilter, startTime *int64, endTime *int64) (*data.IterablePaginatedData[data.StoreJob], error) {
+func (store *MySQLJobStore) GetInTimeRange(ctx context.Context, filter data.JobFilter, startTime *int64, endTime *int64) (*data.IterablePaginatedData[data.StoreJob], error) {
 	// Build conditions
 	args := []any{}
 	conditions := []string{}
 	if filter.ID != nil {
 		conditions = append(conditions, "job_id = ?")
 		args = append(args, *filter.ID)
+	}
+	if filter.ParentID != nil {
+		conditions = append(conditions, "parent_job_id = ?")
+		args = append(args, *filter.ParentID)
 	}
 	if filter.Category != nil {
 		conditions = append(conditions, "job_category = ?")
@@ -106,24 +115,25 @@ func (store *MySQLJobStore) GetInTimeRange(filter data.JobFilter, startTime *int
 	}
 	query += "job_id > ? ORDER BY job_id LIMIT ?"
 
-	getPage := func(lastID *string) ([]data.StoreJob, *string, error) {
+	getPage := func(ctx context.Context, lastID *string) ([]data.StoreJob, *string, error) {
 		var filterID string
 		if lastID != nil {
 			filterID = *lastID
 		}
-		context, cancel := utils.TimeoutContext(requestTimeout)
+		context, cancel := context.WithTimeout(ctx, RequestTimeout)
 		defer cancel()
 		rows, err := store.DB.QueryContext(context, query, append(args, filterID, data.PAGE_SIZE)...)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error querying jobs with filter %v: %w", filter, err)
 		}
-		defer utils.LogErrors(rows.Close, fmt.Sprintf("error closing rows for query %v and lastID %v", query, lastID))
+		defer logs.LogErrorsWithContext(ctx, rows.Close, fmt.Sprintf("error closing rows for query %v and lastID %v", query, lastID))
 
 		var jobs []data.StoreJob
 		for rows.Next() {
 			var job data.StoreJob
 			err := rows.Scan(
 				&job.ID,
+				&job.ParentID,
 				&job.Category,
 				&job.StartTimestamp,
 				&job.EndTimestamp,
@@ -146,32 +156,33 @@ func (store *MySQLJobStore) GetInTimeRange(filter data.JobFilter, startTime *int
 
 	return &data.IterablePaginatedData[data.StoreJob]{GetPage: getPage}, nil
 }
-func (store *MySQLJobStore) Setup(isDestructive bool) error {
+func (store *MySQLJobStore) Setup(ctx context.Context, isDestructive bool) error {
 	if isDestructive {
-		context, cancel := utils.TimeoutContext(requestTimeout)
+		sqlctx, cancel := context.WithTimeout(ctx, RequestTimeout)
 		defer cancel()
-		_, err := store.DB.ExecContext(context, `SET FOREIGN_KEY_CHECKS = 0`)
+		_, err := store.DB.ExecContext(sqlctx, `SET FOREIGN_KEY_CHECKS = 0`)
 		if err != nil {
 			return fmt.Errorf("error disabling FK checks: %w", err)
 		}
-		context, cancel = utils.TimeoutContext(requestTimeout)
+		sqlctx, cancel = context.WithTimeout(ctx, RequestTimeout)
 		defer cancel()
-		_, err = store.DB.ExecContext(context, `DROP TABLE IF EXISTS jobs`)
+		_, err = store.DB.ExecContext(sqlctx, `DROP TABLE IF EXISTS jobs`)
 		if err != nil {
 			return fmt.Errorf("error dropping jobs table: %w", err)
 		}
-		context, cancel = utils.TimeoutContext(requestTimeout)
+		sqlctx, cancel = context.WithTimeout(ctx, RequestTimeout)
 		defer cancel()
-		_, err = store.DB.ExecContext(context, `SET FOREIGN_KEY_CHECKS = 1`)
+		_, err = store.DB.ExecContext(sqlctx, `SET FOREIGN_KEY_CHECKS = 1`)
 		if err != nil {
 			return fmt.Errorf("error enabling FK checks: %w", err)
 		}
 	}
-	context, cancel := utils.TimeoutContext(requestTimeout)
+	sqlctx, cancel := context.WithTimeout(ctx, RequestTimeout)
 	defer cancel()
-	_, err := store.DB.ExecContext(context, `		
+	_, err := store.DB.ExecContext(sqlctx, `		
 		CREATE TABLE IF NOT EXISTS jobs (
 			job_id 				VARCHAR(36) NOT NULL,
+			parent_job_id		VARCHAR(36) NOT NULL,
 			job_category 		VARCHAR(36) NOT NULL,
 			job_start_timestamp BIGINT		NOT NULL,
 			job_end_timestamp 	BIGINT		NOT NULL
@@ -182,10 +193,10 @@ func (store *MySQLJobStore) Setup(isDestructive bool) error {
 	}
 	return nil
 }
-func (store *MySQLJobStore) Export(filter data.JobFilter) error {
-	return store.ExportInTimeRange(filter, nil, nil)
+func (store *MySQLJobStore) Export(ctx context.Context, filter data.JobFilter) error {
+	return store.ExportInTimeRange(ctx, filter, nil, nil)
 }
-func (store *MySQLJobStore) ExportInTimeRange(filter data.JobFilter, startTime *int64, endTime *int64) error {
+func (store *MySQLJobStore) ExportInTimeRange(ctx context.Context, filter data.JobFilter, startTime *int64, endTime *int64) error {
 	// Ensure exports directory exists
 	var OwnerReadWriteExecuteAndOthersReadExecute = 0755
 	err := os.MkdirAll(db.EXPORT_DIR, os.FileMode(OwnerReadWriteExecuteAndOthersReadExecute))
@@ -201,7 +212,7 @@ func (store *MySQLJobStore) ExportInTimeRange(filter data.JobFilter, startTime *
 	if err != nil {
 		return fmt.Errorf("error creating export file: %w", err)
 	}
-	defer utils.LogErrors(f.Close, fmt.Sprintf("error closing file %v", filename))
+	defer logs.LogErrorsWithContext(ctx, f.Close, fmt.Sprintf("error closing file %v", filename))
 
 	w := csv.NewWriter(f)
 	defer w.Flush()
@@ -209,6 +220,7 @@ func (store *MySQLJobStore) ExportInTimeRange(filter data.JobFilter, startTime *
 	// Write CSV header
 	err = w.Write([]string{
 		"job_id",
+		"parent_job_id",
 		"job_category",
 		"job_start_timestamp",
 		"job_end_timestamp",
@@ -218,16 +230,16 @@ func (store *MySQLJobStore) ExportInTimeRange(filter data.JobFilter, startTime *
 	}
 
 	// Get data
-	jobs, err := store.GetInTimeRange(filter, startTime, endTime)
+	jobs, err := store.GetInTimeRange(ctx, filter, startTime, endTime)
 	if err != nil {
 		return fmt.Errorf("error getting jobs for export with filter %v: %w", filter, err)
 	}
 
 	// Write each row
 	for {
-		job, err := jobs.Next()
+		job, err := jobs.Next(ctx)
 		if err != nil {
-			utils.DefaultSafeLog(fmt.Sprintf("Error while fetching job while exporting: %v", err))
+			logs.ErrorWithContext(ctx, "Error while fetching job while exporting: %v", err)
 		}
 		if job == nil {
 			break
@@ -235,12 +247,13 @@ func (store *MySQLJobStore) ExportInTimeRange(filter data.JobFilter, startTime *
 
 		err = w.Write([]string{
 			job.ID,
+			job.ParentID,
 			job.Category,
 			utils.EpochSecondsToExcelDate(job.StartTimestamp),
 			utils.EpochSecondsToExcelDate(job.EndTimestamp),
 		})
 		if err != nil {
-			utils.DefaultSafeLog(fmt.Sprintf("Error while writing csv row with data %v: %v", job, err))
+			logs.ErrorWithContext(ctx, "Error while writing csv row with data %v: %v", job, err)
 		}
 	}
 
