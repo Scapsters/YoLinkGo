@@ -114,12 +114,12 @@ func (l *JobLogger) CreateChildJob(ctx context.Context, category JobCategory) (*
 
 func (l *JobLogger) log(ctx context.Context, level int, fstring string, args ...any) {
 	// Create entry
-	stackBuffer := []byte{}
-	runtime.Stack(stackBuffer, false)
+	stackBuffer := make([]byte, 64*1024)
+	numBytes := runtime.Stack(stackBuffer, false)
 	entry := data.Log{
 		JobID:       l.jobID,
 		Level:       level,
-		StackTrace:  string(stackBuffer),
+		StackTrace:  string(stackBuffer[:numBytes]),
 		Description: fmt.Sprintf(fstring, args...),
 		Timestamp:   time.Now().UTC().Unix(),
 	}
