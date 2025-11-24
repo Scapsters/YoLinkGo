@@ -165,23 +165,9 @@ func (store *MySQLLogStore) GetInTimeRange(ctx context.Context, filter data.LogF
 }
 func (store *MySQLLogStore) Setup(ctx context.Context, isDestructive bool) error {
 	if isDestructive {
-		sqlctx, cancel := context.WithTimeout(ctx, RequestTimeout)
-		defer cancel()
-		_, err := store.DB.ExecContext(sqlctx, `SET FOREIGN_KEY_CHECKS = 0`)
+		err := dropTable(ctx, store.DB, "logs")
 		if err != nil {
-			return fmt.Errorf("error disabling FK checks: %w", err)
-		}
-		sqlctx, cancel = context.WithTimeout(ctx, RequestTimeout)
-		defer cancel()
-		_, err = store.DB.ExecContext(sqlctx, `DROP TABLE IF EXISTS logs`)
-		if err != nil {
-			return fmt.Errorf("error dropping logs table: %w", err)
-		}
-		sqlctx, cancel = context.WithTimeout(ctx, RequestTimeout)
-		defer cancel()
-		_, err = store.DB.ExecContext(sqlctx, `SET FOREIGN_KEY_CHECKS = 1`)
-		if err != nil {
-			return fmt.Errorf("error enabling FK checks: %w", err)
+			return err
 		}
 	}
 	sqlctx, cancel := context.WithTimeout(ctx, RequestTimeout)
