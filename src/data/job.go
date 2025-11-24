@@ -2,11 +2,9 @@ package data
 
 // A job as read from a store. Mutations are not implicitly persisted.
 type StoreJob struct {
+	Job
+	
 	ID             string
-	ParentID       string
-	Category       string
-	StartTimestamp int64
-	EndTimestamp   int64
 }
 
 // A job that is not necessarily associated with a Store object.
