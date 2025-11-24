@@ -181,7 +181,7 @@ func (store *MySQLDeviceStore) Edit(ctx context.Context, device data.StoreDevice
 	res, err := store.DB.ExecContext(sqlctx, `
         UPDATE devices
         SET
-			brand_device_id  = ?
+			brand_device_id  = ?,
             device_brand     = ?,
             device_kind      = ?,
             device_name      = ?,
