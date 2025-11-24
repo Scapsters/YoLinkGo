@@ -11,8 +11,9 @@ const EXPORT_DIR string = "../export"
 // S represents the store object type, which is typically the base type with an id field.
 // F represents the filter object type, which is typically a partial version of the store object type.
 type GenericStore[T any, S any, F any] interface {
-	// Add the object, return the ID
+	// Add the object, return the ID.
 	Add(context context.Context, item T) (string, error)
+	// Fully remove the given item.
 	Delete(context context.Context, storeItem S) error
 	Get(context context.Context, filter F) (*data.IterablePaginatedData[S], error)
 	// Create the objects necessary to store data.
