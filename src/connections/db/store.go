@@ -30,11 +30,19 @@ type EditableStore[T any, S any, F any] interface {
 	Edit(context context.Context, storeItem S) error
 }
 
+// Stores that have timestamped data, allowing for special querying and exporting methods.
 type TimestampedDataStore[T any, S any, F any] interface {
 	GenericStore[T, S, F]
 	// Exports all rows that match the given filter and date range. The date range should refer to the recording time of the data in the row.
 	ExportInTimeRange(context context.Context, filter F, startTime *int64, endTime *int64) error
 	GetInTimeRange(context context.Context, filter F, startTime *int64, endTime *int64) (*data.IterablePaginatedData[S], error)
+}
+
+// Stores that have ongoing anc closable events that can be ended.
+type ClosableStore[T any, S any, F any] interface {
+	GenericStore[T, S, F]
+	// Ends the given item, typically by setting its end date to the current time.
+	End(context context.Context, storeItem S) error
 }
 
 type DeviceStore interface {
@@ -51,4 +59,5 @@ type LogStore interface {
 
 type JobStore interface {
 	TimestampedDataStore[data.Job, data.StoreJob, data.JobFilter]
+	ClosableStore[data.Job, data.StoreJob, data.JobFilter]
 }

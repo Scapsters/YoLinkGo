@@ -67,6 +67,30 @@ func (store *MySQLJobStore) Delete(ctx context.Context, storeItem data.StoreJob)
 	}
 	return nil
 }
+func (store *MySQLJobStore) End(ctx context.Context, job data.StoreJob) error {
+	sqlctx, cancel := context.WithTimeout(ctx, RequestTimeout)
+	defer cancel()
+	res, err := store.DB.ExecContext(
+		sqlctx, 
+		`UPDATE devices SET job_end_timestamp = ? WHERE job_id = ?`,
+		utils.TimeSeconds(),
+		job.ID,
+	)
+	if err != nil {
+		return fmt.Errorf("error ending job %v: %w", job, err)
+	}
+
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("error checking rows affected in edit for job %v: %w", job, err)
+	}
+	if rows == 0 {
+		logs.WarnWithContext(ctx, "job %v was not found when attempting to close it", job)
+		return fmt.Errorf("no job ended with ID %v", job.ID)
+	}
+
+	return nil
+}
 func (store *MySQLJobStore) Get(ctx context.Context, filter data.JobFilter) (*data.IterablePaginatedData[data.StoreJob], error) {
 	return store.GetInTimeRange(ctx, filter, nil, nil)
 }
