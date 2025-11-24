@@ -49,14 +49,15 @@ func createChildJob(ctx context.Context, db db.DBConnection, category JobCategor
 	timestamp := time.Now().UTC().Unix()
 	var parentJobID string
 	if parentJobLogger != nil {
-		parentJobID = parentJobLogger.jobID
+		parentJobID = parentJobLogger.job.ID
 	}
-	id, err := db.Jobs().Add(ctx, data.Job{
+	job := data.Job{
 		ParentID:       parentJobID,
 		Category:       string(category),
 		StartTimestamp: timestamp,
 		EndTimestamp:   0,
-	})
+	}
+	id, err := db.Jobs().Add(ctx, job)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create job under ctx %v and category %v with connection %v: %w", ctx, category, db, err)
 	}
@@ -78,7 +79,7 @@ func createChildJob(ctx context.Context, db db.DBConnection, category JobCategor
 	// Return logger
 	return &JobLogger{
 		db:              db,
-		jobID:           id,
+		job:			 data.StoreJob{Job: job, ID: id},
 		fileMutex:       &sync.Mutex{},
 		timestamp:       timestamp,
 		filename:        filename,
@@ -89,13 +90,18 @@ func createChildJob(ctx context.Context, db db.DBConnection, category JobCategor
 // Logs to the database, a file, and to stdout.
 type JobLogger struct {
 	db              db.DBConnection
-	jobID           string
-	fileMutex       *sync.Mutex
-	filename        string
-	parentJobLogger *JobLogger
 	timestamp       int64
+	job             data.StoreJob
+	parentJobLogger *JobLogger
+	filename        string
+	fileMutex       *sync.Mutex
 }
-
+func (l *JobLogger) End(ctx context.Context) {
+	err := l.db.Jobs().End(ctx, l.job)
+	if err != nil {
+		l.Error(ctx, "Unable to end log %v: %v", l, err)
+	}
+}
 func (l *JobLogger) Debug(ctx context.Context, fstring string, args ...any) {
 	l.log(ctx, 4, fstring, args...)
 }
@@ -116,7 +122,7 @@ func (l *JobLogger) log(ctx context.Context, level int, fstring string, args ...
 	stackBuffer := make([]byte, 64*1024)
 	numBytes := runtime.Stack(stackBuffer, false)
 	entry := data.Log{
-		JobID:       l.jobID,
+		JobID:       l.job.ID,
 		Level:       level,
 		StackTrace:  string(stackBuffer[:numBytes]),
 		Description: fmt.Sprintf(fstring, args...),

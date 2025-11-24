@@ -49,23 +49,33 @@ func LogWithContext(ctx context.Context, level int, fstring string, args ...any)
 		logger.Debug(ctx, fstring, args...)
 	}
 }
-
 // Create a debug log.
 func DebugWithContext(ctx context.Context, fstring string, args ...any) {
 	LogWithContext(ctx, 4, fstring, args...)
 }
-
 // Create an info log.
 func InfoWithContext(ctx context.Context, fstring string, args ...any) {
 	LogWithContext(ctx, 3, fstring, args...)
 }
-
 // Create a warning log.
 func WarnWithContext(ctx context.Context, fstring string, args ...any) {
 	LogWithContext(ctx, 2, fstring, args...)
 }
-
 // Create a error log.
 func ErrorWithContext(ctx context.Context, fstring string, args ...any) {
 	LogWithContext(ctx, 1, fstring, args...)
+}
+
+// End the current job in the context.
+func EndJobWithContext(ctx context.Context, fstring string, args ...any) {
+	logger := ctx.Value(loggerKey{})
+	if logger == nil {
+		FDefaultLog("[NO CONTEXT] %v", fmt.Sprintf(fstring, args...))
+	} else {
+		logger, ok := logger.(*JobLogger)
+		if !ok {
+			FDefaultLog("Unable to close job, cannot cast %v from context %v into logger. intended message %v:", logger, ctx, fmt.Sprintf(fstring, args...))
+		}
+		logger.Debug(ctx, fstring, args...)
+	}
 }
