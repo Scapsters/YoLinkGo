@@ -1,5 +1,7 @@
 package connections
 
+import "context"
+
 type PingResult int
 
 const (
@@ -22,10 +24,10 @@ func (status PingResult) String() string {
 
 type Connection interface {
 	// No error implies Status will be Good
-	Open() error
+	Open(ctx context.Context) error
 	// No error implies Status will be Bad
 	Close() error
 	// Check the status of the connection with no chance of an error being thrown
 	// string is a description of the result, usually if Bad
-	Status() (PingResult, string)
+	Status(ctx context.Context) (PingResult, string)
 }

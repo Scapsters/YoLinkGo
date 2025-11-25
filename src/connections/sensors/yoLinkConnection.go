@@ -4,7 +4,9 @@ import (
 	"com/connections"
 	"com/connections/db"
 	"com/data"
+	"com/logs"
 	"com/utils"
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -17,12 +19,14 @@ const TOKEN_REFRESH_BUFFER_MINUTES = 30
 const YOLINK_BRAND_NAME = "yolink"
 
 type YoLinkAPIError struct {
-	Code string
+	Code        string
 	Description string
 }
+
 func (e *YoLinkAPIError) Error() string {
 	return fmt.Sprintf("non-00000 code from YoLink API: %v, description: %v", e.Code, e.Description)
 }
+
 var ErrYoLinkAPIError *YoLinkAPIError = new(YoLinkAPIError)
 
 var _ SensorConnection = (*YoLinkConnection)(nil)
@@ -35,16 +39,16 @@ type YoLinkConnection struct {
 	tokenExpirationTime int64
 }
 
-func NewYoLinkConnection(userId string, userKey string) (*YoLinkConnection, error) {
+func NewYoLinkConnection(ctx context.Context, userId string, userKey string) (*YoLinkConnection, error) {
 	c := &YoLinkConnection{
 		userId:  userId,
 		userKey: userKey,
 	}
-	err := c.Open()
+	err := c.Open(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error while opening new YoLink connection: %w", err)
 	}
-	status, description := c.Status()
+	status, description := c.Status(ctx)
 	if status != connections.Good {
 		return nil, fmt.Errorf("error while checking status of new YoLink connection. Connection status: %v, connection description: %v", status, description)
 	}
@@ -55,7 +59,7 @@ func NewYoLinkConnection(userId string, userKey string) (*YoLinkConnection, erro
 // Token is active and far from expiring: no actions taken.
 // Token is active but close to expiring: token is refreshed using current token.
 // No token exists or token is expired: fetch new token.
-func (c *YoLinkConnection) Open() error {
+func (c *YoLinkConnection) Open(ctx context.Context) error {
 	currentTime := utils.TimeSeconds()
 
 	var hasToken = c.tokenExpirationTime != 0
@@ -69,8 +73,8 @@ func (c *YoLinkConnection) Open() error {
 	}
 
 	if !hasToken || isTokenExpired {
-		utils.FDefaultSafeLog("getting access key through creds: %v", c)
-		response, err = utils.PostForm[AuthenticationResponse](
+		logs.DebugWithContext(ctx, "creating YoLink token")
+		response, err = utils.PostForm[AuthenticationResponse](ctx,
 			TOKEN_URL,
 			map[string]string{
 				"grant_type":    "client_credentials",
@@ -86,8 +90,8 @@ func (c *YoLinkConnection) Open() error {
 		c.tokenExpirationTime = utils.TimeSeconds() + int64(response.ExpiresIn)
 	}
 	if isTokenNearlyExpired {
-		utils.FDefaultSafeLog("refreshing token")
-		err = c.refreshCurrentToken()
+		logs.DebugWithContext(ctx, "refreshing YoLink token")
+		err = c.refreshCurrentToken(ctx)
 		if err != nil {
 			return fmt.Errorf("error refreshing current tokens with connection %v: %w", c, err)
 		}
@@ -101,29 +105,33 @@ func (c *YoLinkConnection) Close() error {
 	c.tokenExpirationTime = 0
 	return nil
 }
-func (c *YoLinkConnection) Status() (connections.PingResult, string) {
-	err := c.refreshCurrentToken()
+func (c *YoLinkConnection) Status(ctx context.Context) (connections.PingResult, string) {
+	err := c.refreshCurrentToken(ctx)
 	if err != nil {
 		return connections.Bad, err.Error()
 	}
 	return connections.Good, "Successful ping via token refresh"
 }
-func (c *YoLinkConnection) GetDeviceState(device *data.StoreDevice) ([]data.Event, error) {
+func (c *YoLinkConnection) GetDeviceState(ctx context.Context, device *data.StoreDevice) ([]data.Event, error) {
 	// Verify device brand
 	if device.Brand != YOLINK_BRAND_NAME {
 		return nil, fmt.Errorf("GetDeviceState called on YoLinkConnection but given device is of brand %v", device.Brand)
 	}
 	// Make request
-	deviceState, err := MakeYoLinkRequest[BUDP](c, SimpleBDDP{Method: YoLinkMethod(device.Kind + ".getState"), TargetDevice: &device.BrandID, Token: &device.Token})
+	deviceState, err := MakeYoLinkRequest[BUDP](ctx, c, SimpleBDDP{Method: YoLinkMethod(device.Kind + ".getState"), TargetDevice: &device.BrandID, Token: &device.Token})
+	if deviceState == nil {
+		return nil, errors.New("YoLink request was malformed and could not be read")
+	}
 	if deviceState.Code != "000000" {
 		return nil, &YoLinkAPIError{
-			Code: deviceState.Code,
+			Code:        deviceState.Code,
 			Description: fmt.Sprintf("device %v (name: %v) in connection %v at time %v", device.BrandID, device.Name, c, utils.TimeSeconds()),
 		}
 	}
 	if err != nil {
 		return nil, fmt.Errorf("error while quering device: %w", err)
 	}
+
 	// Process response
 	dataMap, err := utils.ToMap[any](deviceState.Data)
 	if err != nil {
@@ -163,22 +171,22 @@ func (c *YoLinkConnection) GetDeviceState(device *data.StoreDevice) ([]data.Even
 	}
 	return events, nil
 }
-func (c *YoLinkConnection) GetManagedDevices(dbConnection db.DBConnection) (*data.IterablePaginatedData[data.StoreDevice], error) {
+func (c *YoLinkConnection) GetManagedDevices(ctx context.Context, dbConnection db.DBConnection) (*data.IterablePaginatedData[data.StoreDevice], error) {
 	brand := YOLINK_BRAND_NAME
-	devices, err := dbConnection.Devices().Get(data.DeviceFilter{Brand: &brand})
+	devices, err := dbConnection.Devices().Get(ctx, data.DeviceFilter{Brand: &brand})
 	if err != nil {
 		return nil, fmt.Errorf("error while searching for devices: %w", err)
 	}
 	return devices, nil
 }
-func MakeYoLinkRequest[T any](c *YoLinkConnection, simpleBDDP SimpleBDDP) (*T, error) {
+func MakeYoLinkRequest[T any](ctx context.Context, c *YoLinkConnection, simpleBDDP SimpleBDDP) (*T, error) {
 	BDDPMap, err := utils.ToMap[any](simpleBDDP)
 	if err != nil {
 		return nil, fmt.Errorf("error converting body %v to map: %w", simpleBDDP, err)
 	}
 	BDDPMap["time"] = strconv.FormatInt(utils.TimeSeconds(), 10)
 
-	err = c.Open() // Ensure tokens are up to date
+	err = c.Open(ctx) // Ensure tokens are up to date
 	if err != nil {
 		return nil, fmt.Errorf("error while opening yoLink connection while preparing for request %v: %w", BDDPMap, err)
 	}
@@ -186,15 +194,15 @@ func MakeYoLinkRequest[T any](c *YoLinkConnection, simpleBDDP SimpleBDDP) (*T, e
 		"Content-Type":  "application/json",
 		"Authorization": fmt.Sprintf("Bearer %v", c.accessToken),
 	}
-	response, err := utils.PostJson[T](API_URL, headers, BDDPMap)
+	response, err := utils.PostJson[T](ctx, API_URL, headers, BDDPMap)
 	if err != nil {
 		return nil, fmt.Errorf("error making request with body %v and headers %v: %w", BDDPMap, headers, err)
 	}
 	return response, nil
 }
-func (c *YoLinkConnection) UpdateManagedDevices(dbConnection db.DBConnection) error {
+func (c *YoLinkConnection) UpdateManagedDevices(ctx context.Context, dbConnection db.DBConnection) error {
 	// Get device List
-	result, err := MakeYoLinkRequest[TypedBUDP[YoLinkDeviceList]](c, SimpleBDDP{Method: HomeGetDeviceList})
+	result, err := MakeYoLinkRequest[TypedBUDP[YoLinkDeviceList]](ctx, c, SimpleBDDP{Method: HomeGetDeviceList})
 	if err != nil {
 		return fmt.Errorf("error while getting YoLink device list: %w", err)
 	}
@@ -206,22 +214,22 @@ func (c *YoLinkConnection) UpdateManagedDevices(dbConnection db.DBConnection) er
 	numDevicesAdded := 0
 	for _, device := range result.Data.Devices {
 		// Check if device exists
-		existingDevices, err := dbConnection.Devices().Get(data.DeviceFilter{ID: &device.DeviceID})
+		existingDevices, err := dbConnection.Devices().Get(ctx, data.DeviceFilter{ID: &device.DeviceID})
 		if err != nil {
 			return fmt.Errorf("error while scanning Devices for device ID %v: %w", device.DeviceID, err)
 		}
-		firstItem, err := existingDevices.Next()
+		firstItem, err := existingDevices.Next(ctx)
 		if err != nil {
 			return fmt.Errorf("error getting first item: %w", err)
 		}
-		secondItem, err := existingDevices.Next()
+		secondItem, err := existingDevices.Next(ctx)
 		if err != nil {
 			return fmt.Errorf("error getting second item: %w", err)
 		}
 
 		// Duplicates exist
 		if firstItem != nil && secondItem != nil {
-			utils.DefaultSafeLog(fmt.Sprintf("Device with ID %v has duplicate entries!", device.DeviceID))
+			logs.WarnWithContext(ctx, "Device with ID %v has duplicate entries!", device.DeviceID)
 		}
 		// Item already exists
 		if firstItem != nil {
@@ -229,7 +237,7 @@ func (c *YoLinkConnection) UpdateManagedDevices(dbConnection db.DBConnection) er
 		}
 
 		// Add device otherwise
-		err = dbConnection.Devices().Add(data.Device{
+		_, err = dbConnection.Devices().Add(ctx, data.Device{
 			Brand:     YOLINK_BRAND_NAME,
 			Kind:      device.Kind,
 			Name:      device.Name,
@@ -242,14 +250,13 @@ func (c *YoLinkConnection) UpdateManagedDevices(dbConnection db.DBConnection) er
 		}
 		numDevicesAdded++
 	}
-	fmt.Printf("%v devices added\n", numDevicesAdded)
 
 	return nil
 }
 
 // Refresh the current token. Requires an existing token to exist.
-func (c *YoLinkConnection) refreshCurrentToken() error {
-	response, err := utils.PostForm[AuthenticationResponse](
+func (c *YoLinkConnection) refreshCurrentToken(ctx context.Context) error {
+	response, err := utils.PostForm[AuthenticationResponse](ctx,
 		TOKEN_URL,
 		map[string]string{
 			"grant_type":    "refresh_token",

@@ -3,7 +3,9 @@ package mysql
 import (
 	"com/connections/db"
 	"com/data"
+	"com/logs"
 	"com/utils"
+	"context"
 	"database/sql"
 	"encoding/csv"
 	"fmt"
@@ -20,9 +22,10 @@ type MySQLDeviceStore struct {
 	DB *sql.DB
 }
 
-func (store *MySQLDeviceStore) Add(item data.Device) error {
-	context, cancel := utils.TimeoutContext(requestTimeout)
+func (store *MySQLDeviceStore) Add(ctx context.Context, item data.Device) (string, error) {
+	context, cancel := context.WithTimeout(ctx, RequestTimeout)
 	defer cancel()
+	id := uuidv7.New().String() // MySQL does not support uuidv7 and is notably slower
 	_, err := store.DB.ExecContext(context,
 		`
         INSERT INTO devices (
@@ -35,7 +38,7 @@ func (store *MySQLDeviceStore) Add(item data.Device) error {
             device_timestamp
         ) VALUES (?, ?, ?, ?, ?, ?, ?)
         `,
-		uuidv7.New().String(), // MySQL does not support uuidv7 and is notably slower
+		id,
 		item.BrandID,
 		item.Brand,
 		item.Kind,
@@ -44,14 +47,14 @@ func (store *MySQLDeviceStore) Add(item data.Device) error {
 		item.Timestamp,
 	)
 	if err != nil {
-		return fmt.Errorf("error adding device %v: %w", item, err)
+		return "", fmt.Errorf("error adding device %v: %w", item, err)
 	}
-	return nil
+	return id, nil
 }
-func (store *MySQLDeviceStore) Delete(device data.StoreDevice) error {
-	context, cancel := utils.TimeoutContext(requestTimeout)
+func (store *MySQLDeviceStore) Delete(ctx context.Context, device data.StoreDevice) error {
+	sqlctx, cancel := context.WithTimeout(ctx, RequestTimeout)
 	defer cancel()
-	res, err := store.DB.ExecContext(context, `DELETE FROM devices WHERE brand_device_id = ?`, device.ID)
+	res, err := store.DB.ExecContext(sqlctx, `DELETE FROM devices WHERE brand_device_id = ?`, device.ID)
 	if err != nil {
 		return fmt.Errorf("error deleting device %v: %w", device, err)
 	}
@@ -64,7 +67,7 @@ func (store *MySQLDeviceStore) Delete(device data.StoreDevice) error {
 	}
 	return nil
 }
-func (store *MySQLDeviceStore) Get(filter data.DeviceFilter) (*data.IterablePaginatedData[data.StoreDevice], error) {
+func (store *MySQLDeviceStore) Get(ctx context.Context, filter data.DeviceFilter) (*data.IterablePaginatedData[data.StoreDevice], error) {
 	// Build conditions
 	args := []any{}
 	conditions := []string{}
@@ -103,18 +106,18 @@ func (store *MySQLDeviceStore) Get(filter data.DeviceFilter) (*data.IterablePagi
 
 	// Gets the next page of results, starting from lastID (non-inclusive) and returns the id to use next call.
 	// On error returns the same id that was given to it
-	getPage := func(lastID *string) ([]data.StoreDevice, *string, error) {
+	getPage := func(ctx context.Context, lastID *string) ([]data.StoreDevice, *string, error) {
 		var filterID string
 		if lastID != nil {
 			filterID = *lastID
 		}
-		context, cancel := utils.TimeoutContext(requestTimeout)
+		sqlctx, cancel := context.WithTimeout(ctx, RequestTimeout)
 		defer cancel()
-		rows, err := store.DB.QueryContext(context, query, append(args, filterID, data.PAGE_SIZE)...)
+		rows, err := store.DB.QueryContext(sqlctx, query, append(args, filterID, data.PAGE_SIZE)...)
 		if err != nil {
 			return nil, lastID, fmt.Errorf("error querying devices: %w", err)
 		}
-		defer utils.LogErrors(rows.Close, fmt.Sprintf("error closing rows for query %v and lastID %v", query, lastID))
+		defer logs.LogErrorsWithContext(ctx, rows.Close, fmt.Sprintf("error closing rows for query %v and lastID %v", query, lastID))
 
 		var devices []data.StoreDevice
 		for rows.Next() {
@@ -146,30 +149,16 @@ func (store *MySQLDeviceStore) Get(filter data.DeviceFilter) (*data.IterablePagi
 
 	return &data.IterablePaginatedData[data.StoreDevice]{GetPage: getPage}, nil
 }
-func (store *MySQLDeviceStore) Setup(isDestructive bool) error {
+func (store *MySQLDeviceStore) Setup(ctx context.Context, isDestructive bool) error {
 	if isDestructive {
-		context, cancel := utils.TimeoutContext(requestTimeout)
-		defer cancel()
-		_, err := store.DB.ExecContext(context, `SET FOREIGN_KEY_CHECKS = 0`)
+		err := dropTable(ctx, store.DB, "devices")
 		if err != nil {
-			return fmt.Errorf("error disabling FK checks: %w", err)
+			return err
 		}
-		context, cancel = utils.TimeoutContext(requestTimeout)
-		defer cancel()
-		_, err = store.DB.ExecContext(context, `DROP TABLE IF EXISTS devices`)
-		if err != nil {
-			return fmt.Errorf("error dropping devices table: %w", err)
-		}
-		context, cancel = utils.TimeoutContext(requestTimeout)
-		defer cancel()
-		_, err = store.DB.ExecContext(context, `SET FOREIGN_KEY_CHECKS = 1`)
-		if err != nil {
-			return fmt.Errorf("error enabling FK checks: %w", err)
-		}
-	} // TODO: token (and others) is very yolink specific. device info needs its own denormalized table?
-	context, cancel := utils.TimeoutContext(requestTimeout)
+	}
+	sqlctx, cancel := context.WithTimeout(ctx, RequestTimeout)
 	defer cancel()
-	_, err := store.DB.ExecContext(context, `
+	_, err := store.DB.ExecContext(sqlctx, `
         CREATE TABLE IF NOT EXISTS devices (
 			device_id 			VARCHAR(40) NOT NULL,
             brand_device_id 	VARCHAR(40) NOT NULL,
@@ -186,13 +175,13 @@ func (store *MySQLDeviceStore) Setup(isDestructive bool) error {
 	}
 	return nil
 }
-func (store *MySQLDeviceStore) Edit(device data.StoreDevice) error {
-	context, cancel := utils.TimeoutContext(requestTimeout)
+func (store *MySQLDeviceStore) Edit(ctx context.Context, device data.StoreDevice) error {
+	sqlctx, cancel := context.WithTimeout(ctx, RequestTimeout)
 	defer cancel()
-	res, err := store.DB.ExecContext(context, `
+	res, err := store.DB.ExecContext(sqlctx, `
         UPDATE devices
         SET
-			brand_device_id  = ?
+			brand_device_id  = ?,
             device_brand     = ?,
             device_kind      = ?,
             device_name      = ?,
@@ -217,13 +206,13 @@ func (store *MySQLDeviceStore) Edit(device data.StoreDevice) error {
 		return fmt.Errorf("error checking rows affected for device %v: %w", device, err)
 	}
 	if rows == 0 {
-		utils.DefaultSafeLog(fmt.Sprintf("device %v was not found when attempting to update it", device))
+		logs.WarnWithContext(ctx, "device %v was not found when attempting to update it", device)
 		return fmt.Errorf("no device updated with ID %v", device.ID)
 	}
 
 	return nil
 }
-func (store *MySQLDeviceStore) Export(filter data.DeviceFilter) error {
+func (store *MySQLDeviceStore) Export(ctx context.Context, filter data.DeviceFilter) error {
 	// Ensure exports directory exists
 	var OwnerReadWriteExecuteAndOthersReadExecute = 0755
 	err := os.MkdirAll(db.EXPORT_DIR, os.FileMode(OwnerReadWriteExecuteAndOthersReadExecute))
@@ -239,14 +228,14 @@ func (store *MySQLDeviceStore) Export(filter data.DeviceFilter) error {
 	if err != nil {
 		return fmt.Errorf("error creating export file: %w", err)
 	}
-	defer utils.LogErrors(f.Close, fmt.Sprintf("error closing file %v", filename))
+	defer logs.LogErrorsWithContext(ctx, f.Close, fmt.Sprintf("error closing file %v", filename))
 
 	w := csv.NewWriter(f)
 	defer w.Flush()
 
 	// Write CSV header
 	err = w.Write([]string{
-		"internal_device_id",
+		"device_id",
 		"brand_device_id",
 		"device_brand",
 		"device_type",
@@ -259,16 +248,16 @@ func (store *MySQLDeviceStore) Export(filter data.DeviceFilter) error {
 	}
 
 	// Get data
-	devices, err := store.Get(filter)
+	devices, err := store.Get(ctx, filter)
 	if err != nil {
 		return fmt.Errorf("error getting devices for export with filter %v: %w", filter, err)
 	}
 
 	// Write each row
 	for {
-		device, err := devices.Next()
+		device, err := devices.Next(ctx)
 		if err != nil {
-			utils.DefaultSafeLog(fmt.Sprintf("Error while fetching device while exporting: %v", err))
+			logs.ErrorWithContext(ctx, "Error while fetching device while exporting: %v", err)
 		}
 		if device == nil {
 			break
@@ -284,7 +273,7 @@ func (store *MySQLDeviceStore) Export(filter data.DeviceFilter) error {
 			utils.EpochSecondsToExcelDate(device.Timestamp),
 		})
 		if err != nil {
-			utils.DefaultSafeLog(fmt.Sprintf("Error while writing csv row with data %v: %v", device, err))
+			logs.ErrorWithContext(ctx, "Error while writing csv row with data %v: %v", device, err)
 		}
 	}
 

@@ -2,13 +2,9 @@ package data
 
 // A device as read from a Store. Mutations are not implicitly persisted.
 type StoreDevice struct {
+	Device
+	
 	ID        string
-	BrandID   string
-	Brand     string
-	Kind      string
-	Name      string
-	Token     string
-	Timestamp int64
 }
 
 // A device that is not necessarily associated with a Store object.
