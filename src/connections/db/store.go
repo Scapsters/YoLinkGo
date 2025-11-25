@@ -10,7 +10,7 @@ const EXPORT_DIR string = "../export"
 // T represents the base type of the store.
 // S represents the store object type, which is typically the base type with an id field.
 // F represents the filter object type, which is typically a partial version of the store object type.
-type GenericStore[T any, S any, F any] interface {
+type GenericStore[T any, S data.HasIDGetter, F any] interface {
 	// Add the object, return the ID.
 	Add(context context.Context, item T) (string, error)
 	// Fully remove the given item.
@@ -22,26 +22,24 @@ type GenericStore[T any, S any, F any] interface {
 	Setup(context context.Context, isDestructive bool) error
 	// Export all rows that match the given filter into a csv file into /exports at the root directory of the project (1 above src).
 	// Names should follow [export date]_[data label].csv.
-	Export(context context.Context, filter F) error
+	Export(context context.Context, storeItems *data.IterablePaginatedData[S]) error
 }
 
-type EditableStore[T any, S any, F any] interface {
+type EditableStore[T any, S data.HasIDGetter, F any] interface {
 	GenericStore[T, S, F]
 	// Edit the item matched by the store item's ID to have all other values in the item
 	Edit(context context.Context, storeItem S) error
 }
 
 // Stores that have timestamped data, allowing for special querying and exporting methods.
-type TimestampedDataStore[T any, S any, F any] interface {
+type TimestampedDataStore[T any, S data.HasIDGetter, F any] interface {
 	GenericStore[T, S, F]
-	// Exports all rows that match the given filter and date range. The date range should refer to the recording time of the data in the row.
-	ExportInTimeRange(context context.Context, filter F, startTime *int64, endTime *int64) error
 	// Data is lazily fetched, so there is no error returned from the getter, which merely sets up the query.
 	GetInTimeRange(context context.Context, filter F, startTime *int64, endTime *int64) *data.IterablePaginatedData[S]
 }
 
 // Stores that have ongoing anc closable events that can be ended.
-type ClosableStore[T any, S any, F any] interface {
+type ClosableStore[T any, S data.HasIDGetter, F any] interface {
 	GenericStore[T, S, F]
 	// Ends the given item, typically by setting its end date to the current time.
 	End(context context.Context, storeItem S) error

@@ -30,7 +30,7 @@ func main() {
 }
 func run(ctx context.Context) error {
 	// Connect to DB
-	dbConnection, err := mysql.NewMySQLConnection(ctx, strings.TrimSpace(os.Getenv("MYSQL_CONNECTION_STRING")), true)
+	dbConnection, err := mysql.NewMySQLConnection(ctx, strings.TrimSpace(os.Getenv("MYSQL_CONNECTION_STRING")), false)
 	if err != nil {
 		return fmt.Errorf("error connecting to DB: %w", err)
 	}
