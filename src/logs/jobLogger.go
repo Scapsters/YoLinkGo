@@ -97,7 +97,7 @@ type JobLogger struct {
 	fileMutex       *sync.Mutex
 }
 func (l *JobLogger) End(ctx context.Context) {
-	err := l.db.Jobs().End(ctx, l.job)
+	err := l.db.Jobs().Close(ctx, l.job)
 	if err != nil {
 		l.Error(ctx, "Unable to end log %v: %v", l, err)
 	}

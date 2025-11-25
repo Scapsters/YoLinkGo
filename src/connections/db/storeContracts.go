@@ -27,7 +27,7 @@ type GenericStore[T any, S data.HasIDGetter, F any] interface {
 
 type EditableStore[T any, S data.HasIDGetter, F any] interface {
 	GenericStore[T, S, F]
-	// Edit the item matched by the store item's ID to have all other values in the item
+	// Edit the item matched by the store item's ID to have all other values in the item. Errors if target item isn't found
 	Edit(context context.Context, storeItem S) error
 }
 
@@ -42,7 +42,7 @@ type TimestampedDataStore[T any, S data.HasIDGetter, F any] interface {
 type ClosableStore[T any, S data.HasIDGetter, F any] interface {
 	GenericStore[T, S, F]
 	// Ends the given item, typically by setting its end date to the current time.
-	End(context context.Context, storeItem S) error
+	Close(context context.Context, storeItem S) error
 }
 
 type DeviceStore interface {

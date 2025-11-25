@@ -83,7 +83,8 @@ func run(ctx context.Context) error {
 
 	// Export
 	err = utils.Retry1(3, func() error {
-		return dbConnection.Events().Export(ctx, data.EventFilter{})
+		items := dbConnection.Events().Get(ctx, data.EventFilter{})
+		return dbConnection.Events().Export(ctx, items)
 	}, nil)
 	if err != nil {
 		return fmt.Errorf("error exporting: %w", err)

@@ -4,6 +4,7 @@ import (
 	"com/connections/db"
 	"com/data"
 	"com/logs"
+	"com/utils"
 	"context"
 	"database/sql"
 	"encoding/csv"
@@ -19,6 +20,7 @@ import (
 // When returning properties in a list, or doing anything, it must always be in the same order.
 // SQL Queries, anything. All in the same order every time.
 // The ID comes first in this order.
+// The main way this order is coordinated is via the data structs "Spread" and related functions. These methods only respect that order.
 type MySQLStore[T data.Spreadable, S data.HasIDGetterAndSpreadable, F data.Spreadable] struct {
 	db *sql.DB
 	tableName string
@@ -27,9 +29,6 @@ type MySQLStore[T data.Spreadable, S data.HasIDGetterAndSpreadable, F data.Sprea
 	primaryKey string
 }
 func (s *MySQLStore[T, S, F]) Add(ctx context.Context, item T) (string, error) {
-	sqlctx, cancel := context.WithTimeout(ctx, RequestTimeout)
-	defer cancel()
-	
 	// Build query
 	id := uuidv7.New().String()
 	sqlArgs := append([]any{id}, item.Spread()...)
@@ -38,6 +37,8 @@ func (s *MySQLStore[T, S, F]) Add(ctx context.Context, item T) (string, error) {
 	sqlQuery := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", s.tableName, sqlColumns, sqlPlaceholders)
 	
 	// Execute query
+	sqlctx, cancel := context.WithTimeout(ctx, RequestTimeout)
+	defer cancel()
 	_, err := s.db.ExecContext(sqlctx, sqlQuery, sqlArgs...)
 	if err != nil {
 		return "", fmt.Errorf("error inserting into %s with values %v: %w", s.tableName, item.Spread(), err)
@@ -50,7 +51,7 @@ func (s *MySQLStore[T, S, F]) Get(ctx context.Context, filter F) *data.IterableP
 	conditions := []string{}
 	for index, columnName := range s.tableColumns {
 		filterValue := filter.Spread()[index]
-		if filterValue == nil {
+		if filterValue == nil { //TODO: the interface is never nil. cast to type first, says chatgpt
 			continue
 		}
 		conditions = append(conditions, columnName + " = ?")
@@ -217,26 +218,70 @@ func (s *MySQLTimestampedDataStore[T, S, F]) GetInTimeRange(ctx context.Context,
 type MySQLEditableStore[T data.Spreadable, S data.HasIDGetterAndSpreadable, F data.Spreadable] struct {
 	MySQLStore[T, S, F]
 }
+func (s *MySQLEditableStore[T, S, F]) Edit(ctx context.Context, storeItem S) error {
+	sqlEdits := strings.TrimSuffix(strings.Join(s.tableColumns, " = ?, "), ", ") 
+
+	sqlctx, _ := context.WithTimeout(ctx, RequestTimeout)
+	result, err := s.db.ExecContext(
+		sqlctx,
+		fmt.Sprintf(
+			`UPDATE %v SET %v WHERE %v = ?`,
+			s.tableName, sqlEdits, s.primaryKey,
+		),
+		append(storeItem.Spread(), storeItem.GetID())...
+	)
+	if err != nil {
+		return fmt.Errorf("error editing item %v in table %v: %w", storeItem, s.tableName, err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("error getting rows affected while editing item %v in table %v: %w", storeItem, s.tableName, err)
+	}
+	if rowsAffected == 0 {
+		return fmt.Errorf("no rows found while exiting item %v in table %v: %w", storeItem, s.tableName, err)
+	}
+	return nil
+}
 
 type MySQLClosableStore[T data.Spreadable, S data.HasIDGetterAndSpreadable, F data.Spreadable] struct {
-	MySQLStore[T, S, F]
+	MySQLTimestampedDataStore[T, S, F]
 	closeKey string
 }
-
-type MySQLClosableAndTimestampedDataStore[T data.Spreadable, S data.HasIDGetterAndSpreadable, F data.Spreadable] struct {
-	MySQLEditableStore[T, S, F]
-	MySQLClosableStore[T, S, F]
+func (s *MySQLClosableStore[T, S, F]) Close(ctx context.Context, storeItem S) error {
+	sqlctx, _ := context.WithTimeout(ctx, RequestTimeout)
+	result, err := s.db.ExecContext(
+		sqlctx,
+		fmt.Sprintf(
+			`UPDATE %v SET %v = ? WHERE %v = ?`,
+			s.tableName, s.closeKey, s.primaryKey,
+		),
+		utils.TimeSeconds(),
+		storeItem.GetID(),
+	)
+	if err != nil {
+		return fmt.Errorf("error editing item %v in table %v: %w", storeItem, s.tableName, err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("error getting rows affected while editing item %v in table %v: %w", storeItem, s.tableName, err)
+	}
+	if rowsAffected == 0 {
+		return fmt.Errorf("no rows found while exiting item %v in table %v: %w", storeItem, s.tableName, err)
+	}
+	return nil
 }
 
-
+// Helper function for get methods
 func newSQLIterablePaginatedData[T data.HasIDGetterAndSpreadableAddresss](db *sql.DB, query string, args []any) data.IterablePaginatedData[T] {
 	// Define pagination function
-	return data.NewIterablePaginatedData[T](func(ctx context.Context, lastID *string) ([]T, *string, error) {
+	return data.NewIterablePaginatedData(
+		func(ctx context.Context, lastID *string) ([]T, *string, error) {	
+			// Peform query. First query has no pagination filter, subsequent queries use the last id from the previous filter
 			var filterID string
 			if lastID != nil {
 				filterID = *lastID
 			}
-			context, cancel := context.WithTimeout(ctx, mysql.RequestTimeout)
+			context, cancel := context.WithTimeout(ctx, RequestTimeout)
 			defer cancel()
 			rows, err := db.QueryContext(context, query, append(args, filterID, data.PAGE_SIZE)...)
 			if err != nil {
@@ -244,6 +289,7 @@ func newSQLIterablePaginatedData[T data.HasIDGetterAndSpreadableAddresss](db *sq
 			}
 			defer logs.LogErrorsWithContext(ctx, rows.Close, fmt.Sprintf("error closing rows for query %v and lastID %v", query, lastID))
 
+			// Scan all results into the next "page" of data to store
 			var items []T
 			for rows.Next() {
 				var item T

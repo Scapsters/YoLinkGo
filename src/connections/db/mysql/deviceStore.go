@@ -8,15 +8,16 @@ import (
 
 var _ db.GenericStore[data.Device, data.StoreDevice, data.DeviceFilter] = (*MySQLDeviceStore)(nil)
 type MySQLDeviceStore struct {
-	MySQLStore[data.Device, data.StoreDevice, data.DeviceFilter]
+	MySQLEditableStore[data.Device, data.StoreDevice, data.DeviceFilter]
 }
 
 func NewMySQLDeviceStore(db *sql.DB) MySQLDeviceStore {
 	return MySQLDeviceStore{
-		MySQLStore: MySQLStore[data.Device, data.StoreDevice, data.DeviceFilter]{
-			db: db,
-			tableName: "devices",
-			tableCreationSQL: `
+		MySQLEditableStore: MySQLEditableStore[data.Device, data.StoreDevice, data.DeviceFilter]{
+			MySQLStore: MySQLStore[data.Device, data.StoreDevice, data.DeviceFilter]{
+				db: db,
+				tableName: "devices",
+				tableCreationSQL: `
 				CREATE TABLE IF NOT EXISTS devices (
 					device_id 			VARCHAR(40) NOT NULL,
 					brand_device_id 	VARCHAR(40) NOT NULL,
@@ -26,18 +27,19 @@ func NewMySQLDeviceStore(db *sql.DB) MySQLDeviceStore {
 					device_token 		VARCHAR(60) NOT NULL, 
 					device_timestamp 	VARCHAR(45) NOT NULL,
 					PRIMARY KEY (device_id)
-				) ENGINE = InnoDB;
-			`,
-			tableColumns: []string{
-				"device_id",
-				"brand_device_id",
-				"device_brand",
-				"device_kind",
-				"device_name",
-				"device_token",
-				"device_timestamp",
+					) ENGINE = InnoDB;
+				`,
+				tableColumns: []string{
+					"device_id",
+					"brand_device_id",
+					"device_brand",
+					"device_kind",
+					"device_name",
+					"device_token",
+					"device_timestamp",
+				},
+				primaryKey: "device_id",
 			},
-			primaryKey: "device_id",
 		},
 	}
 }

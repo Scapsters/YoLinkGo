@@ -50,7 +50,7 @@ func NewMySQLEventStore(db *sql.DB) MySQLEventStore {
 					"field_name",
 					"field_value",
 				},
-				primaryKey: "device_id",
+				primaryKey: "event_id",
 			},
 		},
 	}

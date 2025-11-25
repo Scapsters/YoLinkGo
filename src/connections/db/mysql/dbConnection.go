@@ -46,28 +46,28 @@ func NewMySQLConnection(ctx context.Context, connectionString string, isSetupDes
 	}
 
 	// Create stores
-	devices := MySQLDeviceStore{DB: db.DB()}
+	devices := NewMySQLDeviceStore(db.db)
 	err = devices.Setup(ctx, isSetupDestructive)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up devices: %w", err)
 	}
 	db.deviceStore = &devices
 
-	events := MySQLEventStore{DB: db.DB()}
+	events := NewMySQLEventStore(db.db)
 	err = events.Setup(ctx, isSetupDestructive)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up events: %w", err)
 	}
 	db.eventStore = &events
 
-	jobs := MySQLJobStore{DB: db.DB()}
+	jobs := NewMySQLJobStore(db.db)
 	err = jobs.Setup(ctx, isSetupDestructive)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up events: %w", err)
 	}
 	db.jobStore = &jobs
 
-	logs := MySQLLogStore{DB: db.DB()}
+	logs := NewMySQLLogStore(db.db)
 	err = logs.Setup(ctx, isSetupDestructive)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up events: %w", err)
