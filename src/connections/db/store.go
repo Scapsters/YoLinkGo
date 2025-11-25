@@ -15,7 +15,8 @@ type GenericStore[T any, S any, F any] interface {
 	Add(context context.Context, item T) (string, error)
 	// Fully remove the given item.
 	Delete(context context.Context, storeItem S) error
-	Get(context context.Context, filter F) (*data.IterablePaginatedData[S], error)
+	// Data is lazily fetched, so there is no error returned from the getter, which merely sets up the query.
+	Get(context context.Context, filter F) *data.IterablePaginatedData[S]
 	// Create the objects necessary to store data.
 	// if isDestructive is false, tables or data should not be destroyed.
 	Setup(context context.Context, isDestructive bool) error
@@ -35,7 +36,8 @@ type TimestampedDataStore[T any, S any, F any] interface {
 	GenericStore[T, S, F]
 	// Exports all rows that match the given filter and date range. The date range should refer to the recording time of the data in the row.
 	ExportInTimeRange(context context.Context, filter F, startTime *int64, endTime *int64) error
-	GetInTimeRange(context context.Context, filter F, startTime *int64, endTime *int64) (*data.IterablePaginatedData[S], error)
+	// Data is lazily fetched, so there is no error returned from the getter, which merely sets up the query.
+	GetInTimeRange(context context.Context, filter F, startTime *int64, endTime *int64) *data.IterablePaginatedData[S]
 }
 
 // Stores that have ongoing anc closable events that can be ended.

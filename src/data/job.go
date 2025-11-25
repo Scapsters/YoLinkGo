@@ -2,9 +2,11 @@ package data
 
 // A job as read from a store. Mutations are not implicitly persisted.
 type StoreJob struct {
+	HasID
 	Job
-	
-	ID             string
+}
+func (job StoreJob) GetID() string {
+	return job.ID
 }
 
 // A job that is not necessarily associated with a Store object.

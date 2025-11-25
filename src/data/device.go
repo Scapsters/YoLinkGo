@@ -2,9 +2,11 @@ package data
 
 // A device as read from a Store. Mutations are not implicitly persisted.
 type StoreDevice struct {
+	HasID
 	Device
-	
-	ID        string
+}
+func (device StoreDevice) GetID() string {
+	return device.ID
 }
 
 // A device that is not necessarily associated with a Store object.

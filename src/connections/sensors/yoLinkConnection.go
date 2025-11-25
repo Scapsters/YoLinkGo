@@ -173,10 +173,7 @@ func (c *YoLinkConnection) GetDeviceState(ctx context.Context, device *data.Stor
 }
 func (c *YoLinkConnection) GetManagedDevices(ctx context.Context, dbConnection db.DBConnection) (*data.IterablePaginatedData[data.StoreDevice], error) {
 	brand := YOLINK_BRAND_NAME
-	devices, err := dbConnection.Devices().Get(ctx, data.DeviceFilter{Brand: &brand})
-	if err != nil {
-		return nil, fmt.Errorf("error while searching for devices: %w", err)
-	}
+	devices := dbConnection.Devices().Get(ctx, data.DeviceFilter{Brand: &brand})
 	return devices, nil
 }
 func MakeYoLinkRequest[T any](ctx context.Context, c *YoLinkConnection, simpleBDDP SimpleBDDP) (*T, error) {
@@ -214,10 +211,7 @@ func (c *YoLinkConnection) UpdateManagedDevices(ctx context.Context, dbConnectio
 	numDevicesAdded := 0
 	for _, device := range result.Data.Devices {
 		// Check if device exists
-		existingDevices, err := dbConnection.Devices().Get(ctx, data.DeviceFilter{ID: &device.DeviceID})
-		if err != nil {
-			return fmt.Errorf("error while scanning Devices for device ID %v: %w", device.DeviceID, err)
-		}
+		existingDevices := dbConnection.Devices().Get(ctx, data.DeviceFilter{ID: &device.DeviceID})
 		firstItem, err := existingDevices.Next(ctx)
 		if err != nil {
 			return fmt.Errorf("error getting first item: %w", err)

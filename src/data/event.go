@@ -2,9 +2,11 @@ package data
 
 // An event as read from a store. Mutations are not implicitly persisted.
 type StoreEvent struct {
+	HasID
 	Event
-	
-	ID                  string
+}
+func (event StoreEvent) GetID() string {
+	return event.ID
 }
 
 // An event that is not necessarily associated with a Store object.

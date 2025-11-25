@@ -79,7 +79,7 @@ func createChildJob(ctx context.Context, db db.DBConnection, category JobCategor
 	// Return logger
 	return &JobLogger{
 		db:              db,
-		job:			 data.StoreJob{Job: job, ID: id},
+		job:			 data.StoreJob{Job: job, HasID: data.HasID{ID: id}},
 		fileMutex:       &sync.Mutex{},
 		timestamp:       timestamp,
 		filename:        filename,
@@ -162,7 +162,7 @@ func (l *JobLogger) logToFileAndParentFiles(ctx context.Context, stringToLog str
 
 	// Open file
 	var OwnerReadWriteAndOthersRead = 0644
-	f, err := os.OpenFile(l.filename, os.O_APPEND, os.FileMode(OwnerReadWriteAndOthersRead))
+	f, err := os.OpenFile(l.filename, os.O_RDWR, os.FileMode(OwnerReadWriteAndOthersRead))
 	if err != nil {
 		FDefaultLog("error creating or opening export file: %v", err)
 	}

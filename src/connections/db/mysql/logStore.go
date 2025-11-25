@@ -3,17 +3,11 @@ package mysql
 import (
 	"com/connections/db"
 	"com/data"
-	"com/logs"
 	"context"
 	"database/sql"
 	"encoding/csv"
 	"fmt"
-	"os"
 	"strconv"
-	"strings"
-	"time"
-
-	"github.com/samborkent/uuidv7"
 )
 
 var _ db.LogStore = (*MySQLLogStore)(nil)
@@ -23,145 +17,36 @@ type MySQLLogStore struct {
 }
 
 func (store *MySQLLogStore) Add(ctx context.Context, item data.Log) (string, error) {
-	context, cancel := context.WithTimeout(ctx, RequestTimeout)
-	defer cancel()
-	id := uuidv7.New().String() // MySQL does not support uuidv7 and is notably slower
-	_, err := store.DB.ExecContext(context,
-		`
-			INSERT INTO logs (
-				log_id,
-				job_id,
-				log_level,
-				log_stack_trace,
-				log_description,
-				log_timestamp
-			) VALUES (?, ?, ?, ?, ?, ?)
-		`,
-		id,
-		item.JobID,
-		item.Level,
-		item.StackTrace,
-		item.Description,
-		item.Timestamp,
+	return sqlInsertHelper[data.Event](
+		ctx,
+		store.DB,
+		"logs",
+		[]string{"log_id", "job_id", "log_level", "log_stack_trace", "log_description", "log_timestamp"},
+		[]any{item.JobID, item.Level, item.StackTrace, item.Description, item.Timestamp},
 	)
-	if err != nil {
-		return "", fmt.Errorf("error while adding %v to log store: %w", item, err)
-	}
-	return id, nil
 }
 func (store *MySQLLogStore) Delete(ctx context.Context, storeItem data.StoreLog) error {
-	context, cancel := context.WithTimeout(ctx, RequestTimeout)
-	defer cancel()
-	response, err := store.DB.ExecContext(
-		context,
-		`DELETE FROM logs WHERE (log_id = ?)`,
-		storeItem.ID,
-	)
-	if err != nil {
-		return fmt.Errorf("error while deleting %v from log store: %w", storeItem, err)
-	}
-	rows, err := response.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("error while checking rows affected for deleting of %v from log store. query response: %v, error: %w", storeItem, response, err)
-	}
-	if rows == 0 {
-		return fmt.Errorf("no rows deleted while deleting %v from log store", storeItem)
-	}
-	return nil
+	return sqlDeleteHelper[data.StoreJob](ctx, store.DB, "logs", storeItem.ID)
 }
-func (store *MySQLLogStore) Get(ctx context.Context, filter data.LogFilter) (*data.IterablePaginatedData[data.StoreLog], error) {
+func (store *MySQLLogStore) Get(ctx context.Context, filter data.LogFilter) *data.IterablePaginatedData[data.StoreLog] {
 	return store.GetInTimeRange(ctx, filter, nil, nil)
 }
-func (store *MySQLLogStore) GetInTimeRange(ctx context.Context, filter data.LogFilter, startTime *int64, endTime *int64) (*data.IterablePaginatedData[data.StoreLog], error) {
-	// Build conditions
-	args := []any{}
-	conditions := []string{}
-	if filter.ID != nil {
-		conditions = append(conditions, "log_id = ?")
-		args = append(args, *filter.ID)
-	}
-	if filter.JobID != nil {
-		conditions = append(conditions, "job_id = ?")
-		args = append(args, *filter.JobID)
-	}
-	if filter.Level != nil {
-		conditions = append(conditions, "log_level = ?")
-		args = append(args, *filter.Level)
-	}
-	if filter.StackTrace != nil {
-		conditions = append(conditions, "log_stack_trace = ?")
-		args = append(args, *filter.StackTrace)
-	}
-	if filter.Description != nil {
-		conditions = append(conditions, "log_description = ?")
-		args = append(args, *filter.Description)
-	}
-	if filter.Timestamp != nil {
-		conditions = append(conditions, "log_timestamp = ?")
-		args = append(args, *filter.Timestamp)
-	}
-	if startTime != nil {
-		conditions = append(conditions, "log_timestamp > ?")
-		args = append(args, *startTime)
-	}
-	if endTime != nil {
-		conditions = append(conditions, "log_timestamp < ?")
-		args = append(args, *endTime)
-	}
-	query := "SELECT * FROM logs"
-	if len(conditions) > 0 {
-		query += " WHERE " + strings.Join(conditions, " AND ")
-	}
-
-	// Add pagination condition
-	if len(conditions) > 0 {
-		query += " AND "
-	} else {
-		query += " WHERE "
-	}
-	query += "log_id > ? ORDER BY log_id LIMIT ?"
-
-	getPage := func(ctx context.Context, lastID *string) ([]data.StoreLog, *string, error) {
-		var filterID string
-		if lastID != nil {
-			filterID = *lastID
-		}
-		context, cancel := context.WithTimeout(ctx, RequestTimeout)
-		defer cancel()
-		rows, err := store.DB.QueryContext(context, query, append(args, filterID, data.PAGE_SIZE)...)
-		if err != nil {
-			return nil, nil, fmt.Errorf("error querying logs with filter %v: %w", filter, err)
-		}
-		defer logs.LogErrorsWithContext(ctx, rows.Close, fmt.Sprintf("error closing rows for query %v and lastID %v", query, lastID))
-
-		var logs []data.StoreLog
-		for rows.Next() {
+func (store *MySQLLogStore) GetInTimeRange(ctx context.Context, filter data.LogFilter, startTime *int64, endTime *int64) *data.IterablePaginatedData[data.StoreLog] {
+	return sqlGetHelper(
+		store.DB,
+		[]string{"log_id = ?", "job_id = ?", "log_level = ?", "log_stack_trace = ?", "log_description = ?", "log_timestamp = ?", "log_timestamp > ?", "log_timestamp < ?"},
+		[]any{filter.ID, filter.JobID, filter.Level, filter.StackTrace, filter.Description, filter.Timestamp, startTime, endTime}, 
+		"logs",
+		"log_id",
+		func(rows *sql.Rows) (*data.StoreLog, error) {
 			var log data.StoreLog
-			err := rows.Scan(
-				&log.ID,
-				&log.JobID,
-				&log.Level,
-				&log.StackTrace,
-				&log.Description,
-				&log.Timestamp,
-			)
+			err := rows.Scan(&log.ID, &log.JobID, &log.Level, &log.StackTrace, &log.Description, &log.Timestamp)
 			if err != nil {
-				return nil, nil, fmt.Errorf("error scanning log: %w", err)
+				return nil, fmt.Errorf("error scanning log: %w", err)
 			}
-			logs = append(logs, log)
-		}
-		err = rows.Err()
-		if err != nil {
-			return nil, nil, fmt.Errorf("error in rows: %w", err)
-		}
-		if len(logs) == 0 {
-			return []data.StoreLog{}, nil, nil
-		}
-		lastLog := logs[len(logs)-1]
-		return logs, &lastLog.ID, nil
-	}
-
-	return &data.IterablePaginatedData[data.StoreLog]{GetPage: getPage}, nil
+			return &log, nil
+		},
+	)	
 }
 func (store *MySQLLogStore) Setup(ctx context.Context, isDestructive bool) error {
 	if isDestructive {
@@ -170,9 +55,7 @@ func (store *MySQLLogStore) Setup(ctx context.Context, isDestructive bool) error
 			return err
 		}
 	}
-	sqlctx, cancel := context.WithTimeout(ctx, RequestTimeout)
-	defer cancel()
-	_, err := store.DB.ExecContext(sqlctx, `		
+	return sqlCreateTableHelper(ctx, store.DB, `		
 		CREATE TABLE IF NOT EXISTS logs (
 			log_id 			VARCHAR(36) NOT NULL,
 			job_id 			VARCHAR(36) NOT NULL,
@@ -181,77 +64,30 @@ func (store *MySQLLogStore) Setup(ctx context.Context, isDestructive bool) error
 			log_description TEXT		NOT NULL,
 			log_timestamp   BIGINT		NOT NULL
 		) ENGINE = InnoDB;
-	`)
-	if err != nil {
-		return fmt.Errorf("error creating log table: %w", err)
-	}
-	return nil
+	`, "logs")
 }
 func (store *MySQLLogStore) Export(ctx context.Context, filter data.LogFilter) error {
 	return store.ExportInTimeRange(ctx, filter, nil, nil)
 }
 func (store *MySQLLogStore) ExportInTimeRange(ctx context.Context, filter data.LogFilter, startTime *int64, endTime *int64) error {
-	// Ensure exports directory exists
-	var OwnerReadWriteExecuteAndOthersReadExecute = 0755
-	err := os.MkdirAll(db.EXPORT_DIR, os.FileMode(OwnerReadWriteExecuteAndOthersReadExecute))
-	if err != nil {
-		return fmt.Errorf("error creating export directory: %w", err)
-	}
-
-	// Generate filename
-	now := time.Now().Format("2006-01-02_15-04-05")
-	filename := fmt.Sprintf("%s/%s_logs.csv", db.EXPORT_DIR, now)
-
-	f, err := os.Create(filename)
-	if err != nil {
-		return fmt.Errorf("error creating export file: %w", err)
-	}
-	defer logs.LogErrorsWithContext(ctx, f.Close, fmt.Sprintf("error closing file %v", filename))
-
-	w := csv.NewWriter(f)
-	defer w.Flush()
-
-	// Write CSV header
-	err = w.Write([]string{
-		"log_id",
-		"job_id",
-		"log_level",
-		"log_stack_trace",
-		"log_description",
-		"log_timestamp",
-	})
-	if err != nil {
-		return fmt.Errorf("error writing CSV header: %w", err)
-	}
-
 	// Get data
-	entries, err := store.GetInTimeRange(ctx, filter, startTime, endTime)
-	if err != nil {
-		return fmt.Errorf("error getting logs for export with filter %v: %w", filter, err)
-	}
+	logs := store.GetInTimeRange(ctx, filter, startTime, endTime)
 
-	// Write each row
-	for {
-		log, err := entries.Next(ctx)
-		if err != nil {
-			logs.ErrorWithContext(ctx, "Error while fetching log while exporting: %v", err)
-		}
-		if log == nil {
-			break
-		}
-
-		err = w.Write([]string{
-			log.ID,
-			log.JobID,
-			strconv.Itoa(log.Level),
-			log.StackTrace,
-			log.Description,
-			strconv.FormatInt(log.Timestamp, 10),
-		})
-		if err != nil {
-			logs.ErrorWithContext(ctx, "Error while writing csv row with data %v: %v", log, err)
-		}
-	}
-
-	return nil
+	// Export data
+	return sqlExportHelper(
+		ctx,
+		logs,
+		"logs",
+		[]string{"log_id", "job_id", "log_level", "log_stack_trace", "log_description", "log_timestamp"},
+		func(writer *csv.Writer, log data.StoreLog) error {
+			return writer.Write([]string{
+				log.ID,
+				log.JobID,
+				strconv.Itoa(log.Level),
+				log.StackTrace,
+				log.Description,
+				strconv.FormatInt(log.Timestamp, 10),
+			})
+		},
+	)
 }

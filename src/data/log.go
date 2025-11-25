@@ -2,9 +2,11 @@ package data
 
 // A log as read from a store. Mutations are not implicitly persisted.
 type StoreLog struct {
+	HasID
 	Log
-	
-	ID          string
+}
+func (log StoreLog) GetID() string {
+	return log.ID
 }
 
 // A log that is not necessarily associated with a Store object.
