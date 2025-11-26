@@ -65,16 +65,15 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("error while storing sensor data: %w", err)
 	}
 
-	// Repeat job for 72h. Currently, this function is blocking
+	// Schedule job
 	logs.FDefaultLog("Scheduling starting...")
 	err = scheduleJob(
-		func() error {
-			err = jobs.StoreAllConnectionSensorData(ctx, dbConnection, yoLinkConnection)
-			if err != nil {
-				return fmt.Errorf("error while storing sensor data: %w", err)
-			}
-			return nil
-		},
+		jobs.CreateJob(ctx,
+			func(ctx context.Context) error {
+				return jobs.StoreAllConnectionSensorData(ctx, dbConnection, yoLinkConnection)
+			},
+			"Store all YoLinkSensor data",
+		),
 		20*time.Minute,
 	)
 	if err != nil {
