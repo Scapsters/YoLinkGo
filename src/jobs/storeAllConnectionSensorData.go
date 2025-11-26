@@ -11,7 +11,6 @@ import (
 )
 
 func StoreAllConnectionSensorData(ctx context.Context, dbConnection db.DBConnection, sensorConnection sensors.SensorConnection) error {
-
 	// Get all devices
 	devices, err := utils.Retry2(3, func() (*data.IterablePaginatedData[data.StoreDevice], error) {
 		return sensorConnection.GetManagedDevices(ctx, dbConnection)
