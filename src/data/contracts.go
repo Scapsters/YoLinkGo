@@ -12,7 +12,7 @@ type Spreadable interface {
 	Spread() []any
 }
 type SpreadableAddresses[T any] interface {
-	// Spread addresses, in order.
+	// Returns a pointer to a copy of the value, and then its spread addresses, in order.
 	SpreadAddresses() (*T, []any)
 }
 type SpreadableForExport interface {
