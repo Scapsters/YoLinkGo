@@ -7,6 +7,7 @@ import (
 )
 
 var _ db.TimestampedDataStore[data.Event, data.StoreEvent, data.EventFilter] = (*MySQLEventStore)(nil)
+
 type MySQLEventStore struct {
 	MySQLTimestampedDataStore[data.Event, data.StoreEvent, data.EventFilter]
 }
@@ -16,7 +17,7 @@ func NewMySQLEventStore(db *sql.DB) MySQLEventStore {
 		MySQLTimestampedDataStore: MySQLTimestampedDataStore[data.Event, data.StoreEvent, data.EventFilter]{
 			timestampKey: "event_timestamp",
 			MySQLStore: MySQLStore[data.Event, data.StoreEvent, data.EventFilter]{
-				db: db,
+				db:        db,
 				tableName: "events",
 				tableCreationSQL: `		
 					CREATE TABLE IF NOT EXISTS events (

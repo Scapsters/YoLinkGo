@@ -7,15 +7,17 @@ import (
 )
 
 var _ db.TimestampedDataStore[data.Log, data.StoreLog, data.LogFilter] = (*MySQLLogStore)(nil)
+
 type MySQLLogStore struct {
 	MySQLTimestampedDataStore[data.Log, data.StoreLog, data.LogFilter]
 }
+
 func NewMySQLLogStore(db *sql.DB) MySQLLogStore {
 	return MySQLLogStore{
 		MySQLTimestampedDataStore: MySQLTimestampedDataStore[data.Log, data.StoreLog, data.LogFilter]{
 			timestampKey: "log_timestamp",
 			MySQLStore: MySQLStore[data.Log, data.StoreLog, data.LogFilter]{
-				db: db,
+				db:        db,
 				tableName: "logs",
 				tableCreationSQL: `		
 					CREATE TABLE IF NOT EXISTS logs (

@@ -7,6 +7,7 @@ import (
 )
 
 var _ db.GenericStore[data.Device, data.StoreDevice, data.DeviceFilter] = (*MySQLDeviceStore)(nil)
+
 type MySQLDeviceStore struct {
 	MySQLEditableStore[data.Device, data.StoreDevice, data.DeviceFilter]
 }
@@ -15,7 +16,7 @@ func NewMySQLDeviceStore(db *sql.DB) MySQLDeviceStore {
 	return MySQLDeviceStore{
 		MySQLEditableStore: MySQLEditableStore[data.Device, data.StoreDevice, data.DeviceFilter]{
 			MySQLStore: MySQLStore[data.Device, data.StoreDevice, data.DeviceFilter]{
-				db: db,
+				db:        db,
 				tableName: "devices",
 				tableCreationSQL: `
 				CREATE TABLE IF NOT EXISTS devices (

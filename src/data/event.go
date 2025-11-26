@@ -2,10 +2,12 @@ package data
 
 // An event as read from a store. Mutations are not implicitly persisted.
 var _ HasIDGetterAndSpreadable[StoreEvent] = StoreEvent{}
+
 type StoreEvent struct {
 	HasID
 	Event
 }
+
 func (event StoreEvent) GetID() string {
 	return event.ID
 }
@@ -45,6 +47,7 @@ func (e StoreEvent) SpreadAddresses() (*StoreEvent, []any) {
 
 // An event that is not necessarily associated with a Store object.
 var _ Spreadable = Event{}
+
 type Event struct {
 	RequestDeviceID     string
 	EventSourceDeviceID string
@@ -53,6 +56,7 @@ type Event struct {
 	FieldName           string
 	FieldValue          string
 }
+
 func (e Event) Spread() []any {
 	return []any{
 		e.RequestDeviceID,
@@ -66,6 +70,7 @@ func (e Event) Spread() []any {
 
 // A partial device object for querying.
 var _ Spreadable = StoreDevice{}
+
 type EventFilter struct {
 	ID                  *string
 	RequestDeviceID     *string
@@ -75,6 +80,7 @@ type EventFilter struct {
 	FieldName           *string
 	FieldValue          *string
 }
+
 func (e EventFilter) Spread() []any {
 	return []any{
 		e.ID,
@@ -86,4 +92,3 @@ func (e EventFilter) Spread() []any {
 		e.FieldValue,
 	}
 }
-

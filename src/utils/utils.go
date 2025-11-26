@@ -8,5 +8,3 @@ import (
 func TimeSeconds() int64 {
 	return time.Now().UTC().Unix()
 }
-
-

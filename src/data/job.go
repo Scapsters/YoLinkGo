@@ -2,10 +2,12 @@ package data
 
 // A job as read from a store. Mutations are not implicitly persisted.
 var _ HasIDGetterAndSpreadable[StoreJob] = StoreJob{}
+
 type StoreJob struct {
 	HasID
 	Job
 }
+
 func (j StoreJob) GetID() string {
 	return j.ID
 }
@@ -39,12 +41,14 @@ func (j StoreJob) SpreadAddresses() (*StoreJob, []any) {
 
 // A job that is not necessarily associated with a Store object.
 var _ Spreadable = Job{}
+
 type Job struct {
 	ParentID       string
 	Category       string
 	StartTimestamp int64
 	EndTimestamp   int64
 }
+
 func (j Job) Spread() []any {
 	return []any{
 		j.ParentID,
@@ -56,6 +60,7 @@ func (j Job) Spread() []any {
 
 // A partial job for querying a store.
 var _ Spreadable = JobFilter{}
+
 type JobFilter struct {
 	ID             *string
 	ParentID       *string
@@ -63,6 +68,7 @@ type JobFilter struct {
 	StartTimestamp *int64
 	EndTimestamp   *int64
 }
+
 func (j JobFilter) Spread() []any {
 	return []any{
 		j.ParentID,

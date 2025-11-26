@@ -79,7 +79,7 @@ func createChildJob(ctx context.Context, db db.DBConnection, category JobCategor
 	// Return logger
 	return &JobLogger{
 		db:              db,
-		job:			 data.StoreJob{Job: job, HasID: data.HasID{ID: id}},
+		job:             data.StoreJob{Job: job, HasID: data.HasID{ID: id}},
 		fileMutex:       &sync.Mutex{},
 		timestamp:       timestamp,
 		filename:        filename,
@@ -96,6 +96,7 @@ type JobLogger struct {
 	filename        string
 	fileMutex       *sync.Mutex
 }
+
 func (l *JobLogger) End(ctx context.Context) {
 	err := l.db.Jobs().Close(ctx, l.job)
 	if err != nil {

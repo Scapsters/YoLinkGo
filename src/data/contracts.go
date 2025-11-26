@@ -1,7 +1,7 @@
 package data
 
 type HasID struct {
-	ID 	string
+	ID string
 }
 type HasIDGetter interface {
 	GetID() string

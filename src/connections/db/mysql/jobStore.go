@@ -7,6 +7,7 @@ import (
 )
 
 var _ db.ClosableStore[data.Job, data.StoreJob, data.JobFilter] = (*MySQLJobStore)(nil)
+
 type MySQLJobStore struct {
 	MySQLClosableStore[data.Job, data.StoreJob, data.JobFilter]
 }
@@ -18,7 +19,7 @@ func NewMySQLJobStore(db *sql.DB) MySQLJobStore {
 			MySQLTimestampedDataStore: MySQLTimestampedDataStore[data.Job, data.StoreJob, data.JobFilter]{
 				timestampKey: "job_start_timestamp",
 				MySQLStore: MySQLStore[data.Job, data.StoreJob, data.JobFilter]{
-					db: db,
+					db:        db,
 					tableName: "jobs",
 					tableCreationSQL: `		
 					CREATE TABLE IF NOT EXISTS jobs (

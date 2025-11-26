@@ -2,10 +2,12 @@ package data
 
 // A device as read from a Store. Mutations are not implicitly persisted.
 var _ HasIDGetterAndSpreadable[StoreDevice] = StoreDevice{}
+
 type StoreDevice struct {
 	HasID
 	Device
 }
+
 func (device StoreDevice) GetID() string {
 	return device.ID
 }
@@ -45,6 +47,7 @@ func (e StoreDevice) SpreadAddresses() (*StoreDevice, []any) {
 
 // A device that is not necessarily associated with a Store object.
 var _ Spreadable = Device{}
+
 type Device struct {
 	BrandID   string
 	Brand     string
@@ -53,6 +56,7 @@ type Device struct {
 	Token     string
 	Timestamp int64
 }
+
 func (e Device) Spread() []any {
 	return []any{
 		e.BrandID,
@@ -66,6 +70,7 @@ func (e Device) Spread() []any {
 
 // A partial device object for querying.
 var _ Spreadable = DeviceFilter{}
+
 type DeviceFilter struct {
 	ID        *string
 	BrandID   *string

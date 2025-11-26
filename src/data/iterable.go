@@ -20,9 +20,11 @@ type IterablePaginatedData[T any] struct {
 	currentPositionInPage int
 	currentLastID         *string
 }
-func NewIterablePaginatedData[T HasIDGetterAndSpreadable[T]](getPage func (ctx context.Context, lastID *string) ([]T, *string, error)) IterablePaginatedData[T] {
+
+func NewIterablePaginatedData[T HasIDGetterAndSpreadable[T]](getPage func(ctx context.Context, lastID *string) ([]T, *string, error)) IterablePaginatedData[T] {
 	return IterablePaginatedData[T]{getPage: getPage}
 }
+
 // Provide the next value if it exists, otherwise check for more data before returning nil.
 func (i *IterablePaginatedData[T]) Next(ctx context.Context) (*T, error) {
 	// Lazy initialization

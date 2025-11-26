@@ -23,12 +23,13 @@ import (
 // The ID comes first in this order.
 // The main way this order is coordinated is via the data structs "Spread" and related functions. These methods only respect that order.
 type MySQLStore[T data.Spreadable, S data.HasIDGetterAndSpreadable[S], F data.Spreadable] struct {
-	db *sql.DB
-	tableName string
+	db               *sql.DB
+	tableName        string
 	tableCreationSQL string
-	tableColumns []string
-	primaryKey string
+	tableColumns     []string
+	primaryKey       string
 }
+
 func (s *MySQLStore[T, S, F]) Add(ctx context.Context, item T) (string, error) {
 	// Build query
 	id := uuidv7.New().String()
@@ -36,7 +37,7 @@ func (s *MySQLStore[T, S, F]) Add(ctx context.Context, item T) (string, error) {
 	sqlColumns := strings.Join(s.tableColumns, ", ")
 	sqlPlaceholders := strings.Repeat("?, ", len(s.tableColumns)-1) + "?"
 	sqlQuery := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", s.tableName, sqlColumns, sqlPlaceholders)
-	
+
 	// Execute query
 	sqlctx, cancel := context.WithTimeout(ctx, RequestTimeout)
 	defer cancel()
@@ -56,10 +57,10 @@ func (s *MySQLStore[T, S, F]) Get(ctx context.Context, filter F) *data.IterableP
 		if filterValue.IsNil() {
 			continue
 		}
-		conditions = append(conditions, columnName + " = ?")
+		conditions = append(conditions, columnName+" = ?")
 		args = append(args, filterInterface)
 	}
-	
+
 	// Combine into query
 	query := "SELECT * FROM " + s.tableName
 	if len(conditions) > 0 {
@@ -75,7 +76,7 @@ func (s *MySQLStore[T, S, F]) Get(ctx context.Context, filter F) *data.IterableP
 	query += fmt.Sprintf("%v > ? ORDER BY %v LIMIT ?", s.primaryKey, s.primaryKey)
 
 	paginator := newSQLIterablePaginatedData[S](s.db, query, args)
-	return &paginator 
+	return &paginator
 }
 func (s *MySQLStore[T, S, F]) Delete(ctx context.Context, storeItem S) error {
 	sqlctx, cancel := context.WithTimeout(ctx, RequestTimeout)
@@ -109,7 +110,7 @@ func (s *MySQLStore[T, S, F]) Setup(ctx context.Context, isDestructive bool) err
 		}
 		sqlctx, cancel = context.WithTimeout(ctx, RequestTimeout)
 		defer cancel()
-		_, err = s.db.ExecContext(sqlctx, `DROP TABLE IF EXISTS ` + s.tableName)
+		_, err = s.db.ExecContext(sqlctx, `DROP TABLE IF EXISTS `+s.tableName)
 		if err != nil {
 			return fmt.Errorf("error dropping logs table: %w", err)
 		}
@@ -129,7 +130,7 @@ func (s *MySQLStore[T, S, F]) Setup(ctx context.Context, isDestructive bool) err
 	return nil
 }
 func (s *MySQLStore[T, S, F]) Export(ctx context.Context, storeItems *data.IterablePaginatedData[S]) error {
-		// Ensure exports directory exists
+	// Ensure exports directory exists
 	var OwnerReadWriteExecuteAndOthersReadExecute = 0755
 	err := os.MkdirAll(db.EXPORT_DIR, os.FileMode(OwnerReadWriteExecuteAndOthersReadExecute))
 	if err != nil {
@@ -179,6 +180,7 @@ type MySQLTimestampedDataStore[T data.Spreadable, S data.HasIDGetterAndSpreadabl
 
 	timestampKey string
 }
+
 func (s *MySQLTimestampedDataStore[T, S, F]) GetInTimeRange(ctx context.Context, filter F, startTime *int64, endTime *int64) *data.IterablePaginatedData[S] {
 	// Build conditions
 	args := []any{}
@@ -188,18 +190,18 @@ func (s *MySQLTimestampedDataStore[T, S, F]) GetInTimeRange(ctx context.Context,
 		if filterValue == nil {
 			continue
 		}
-		conditions = append(conditions, columnName + " = ?")
+		conditions = append(conditions, columnName+" = ?")
 		args = append(args, filterValue)
 	}
 	if startTime != nil {
-		conditions = append(conditions, s.timestampKey + " > ?")
+		conditions = append(conditions, s.timestampKey+" > ?")
 		args = append(args, startTime)
 	}
 	if endTime != nil {
-		conditions = append(conditions, s.timestampKey + " < ?")
+		conditions = append(conditions, s.timestampKey+" < ?")
 		args = append(args, startTime)
 	}
-	
+
 	// Combine into query
 	query := "SELECT * FROM " + s.tableName
 	if len(conditions) > 0 {
@@ -215,14 +217,15 @@ func (s *MySQLTimestampedDataStore[T, S, F]) GetInTimeRange(ctx context.Context,
 	query += fmt.Sprintf("%v > ? ORDER BY %v LIMIT ?", s.primaryKey, s.primaryKey)
 
 	paginator := newSQLIterablePaginatedData[S](s.db, query, args)
-	return &paginator 
+	return &paginator
 }
 
 type MySQLEditableStore[T data.Spreadable, S data.HasIDGetterAndSpreadable[S], F data.Spreadable] struct {
 	MySQLStore[T, S, F]
 }
+
 func (s *MySQLEditableStore[T, S, F]) Edit(ctx context.Context, storeItem S) error {
-	sqlEdits := strings.TrimSuffix(strings.Join(s.tableColumns, " = ?, "), ", ") 
+	sqlEdits := strings.TrimSuffix(strings.Join(s.tableColumns, " = ?, "), ", ")
 
 	sqlctx, cancel := context.WithTimeout(ctx, RequestTimeout)
 	defer cancel()
@@ -232,7 +235,7 @@ func (s *MySQLEditableStore[T, S, F]) Edit(ctx context.Context, storeItem S) err
 			`UPDATE %v SET %v WHERE %v = ?`,
 			s.tableName, sqlEdits, s.primaryKey,
 		),
-		append(storeItem.Spread(), storeItem.GetID())...
+		append(storeItem.Spread(), storeItem.GetID())...,
 	)
 	if err != nil {
 		return fmt.Errorf("error editing item %v in table %v: %w", storeItem, s.tableName, err)
@@ -252,6 +255,7 @@ type MySQLClosableStore[T data.Spreadable, S data.HasIDGetterAndSpreadable[S], F
 
 	closeKey string
 }
+
 func (s *MySQLClosableStore[T, S, F]) Close(ctx context.Context, storeItem S) error {
 	sqlctx, cancel := context.WithTimeout(ctx, RequestTimeout)
 	defer cancel()
@@ -281,7 +285,7 @@ func (s *MySQLClosableStore[T, S, F]) Close(ctx context.Context, storeItem S) er
 func newSQLIterablePaginatedData[T data.HasIDGetterAndSpreadable[T]](db *sql.DB, query string, args []any) data.IterablePaginatedData[T] {
 	// Define pagination function
 	return data.NewIterablePaginatedData(
-		func(ctx context.Context, lastID *string) ([]T, *string, error) {	
+		func(ctx context.Context, lastID *string) ([]T, *string, error) {
 			// Peform query. First query has no pagination filter, subsequent queries use the last id from the previous filter
 			var filterID string
 			if lastID != nil {
