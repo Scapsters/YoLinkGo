@@ -18,6 +18,11 @@ const API_URL = "https://api.yosmart.com/open/yolink/v2/api"
 const TOKEN_REFRESH_BUFFER_MINUTES = 30
 const YOLINK_BRAND_NAME = "yolink"
 
+// Cache variables. During a programs lifetime, these will be populated.
+// While not critical for function, these help mazimize throughput.
+var yolinkSensorsWithoutTimestampedData = []string{}
+var currentRateLimitPredictionPerMinute = 8
+
 type YoLinkAPIError struct {
 	Code        string
 	Description string
