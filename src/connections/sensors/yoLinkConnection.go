@@ -21,7 +21,8 @@ const YOLINK_BRAND_NAME = "yolink"
 // Cache variables. During a programs lifetime, these will be populated.
 // While not critical for function, these help mazimize throughput.
 var yolinkSensorsWithoutTimestampedData = []string{}
-var currentRateLimitPredictionPerMinute = 8
+var currentRateLimitPredictionPerMinute float32 = 8
+var lastRateLimitResponse int64 = 0
 
 type YoLinkAPIError struct {
 	Code        string
