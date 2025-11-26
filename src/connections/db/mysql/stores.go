@@ -10,6 +10,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"time"
 
@@ -21,7 +22,7 @@ import (
 // SQL Queries, anything. All in the same order every time.
 // The ID comes first in this order.
 // The main way this order is coordinated is via the data structs "Spread" and related functions. These methods only respect that order.
-type MySQLStore[T data.Spreadable, S data.HasIDGetterAndSpreadable, F data.Spreadable] struct {
+type MySQLStore[T data.Spreadable, S data.HasIDGetterAndSpreadable[S], F data.Spreadable] struct {
 	db *sql.DB
 	tableName string
 	tableCreationSQL string
@@ -50,12 +51,13 @@ func (s *MySQLStore[T, S, F]) Get(ctx context.Context, filter F) *data.IterableP
 	args := []any{}
 	conditions := []string{}
 	for index, columnName := range s.tableColumns {
-		filterValue := filter.Spread()[index]
-		if filterValue == nil { //TODO: the interface is never nil. cast to type first, says chatgpt
+		filterInterface := filter.Spread()[index]
+		filterValue := reflect.ValueOf(filterInterface)
+		if filterValue.IsNil() {
 			continue
 		}
 		conditions = append(conditions, columnName + " = ?")
-		args = append(args, filterValue)
+		args = append(args, filterInterface)
 	}
 	
 	// Combine into query
@@ -163,7 +165,7 @@ func (s *MySQLStore[T, S, F]) Export(ctx context.Context, storeItems *data.Itera
 			break
 		}
 
-		writer.Write((*item).SpreadForExport())
+		err = writer.Write((*item).SpreadForExport())
 		if err != nil {
 			logs.ErrorWithContext(ctx, "Error while writing csv row with data %v: %v", item, err)
 		}
@@ -172,8 +174,9 @@ func (s *MySQLStore[T, S, F]) Export(ctx context.Context, storeItems *data.Itera
 	return nil
 }
 
-type MySQLTimestampedDataStore[T data.Spreadable, S data.HasIDGetterAndSpreadable, F data.Spreadable] struct {
+type MySQLTimestampedDataStore[T data.Spreadable, S data.HasIDGetterAndSpreadable[S], F data.Spreadable] struct {
 	MySQLStore[T, S, F]
+
 	timestampKey string
 }
 func (s *MySQLTimestampedDataStore[T, S, F]) GetInTimeRange(ctx context.Context, filter F, startTime *int64, endTime *int64) *data.IterablePaginatedData[S] {
@@ -215,13 +218,14 @@ func (s *MySQLTimestampedDataStore[T, S, F]) GetInTimeRange(ctx context.Context,
 	return &paginator 
 }
 
-type MySQLEditableStore[T data.Spreadable, S data.HasIDGetterAndSpreadable, F data.Spreadable] struct {
+type MySQLEditableStore[T data.Spreadable, S data.HasIDGetterAndSpreadable[S], F data.Spreadable] struct {
 	MySQLStore[T, S, F]
 }
 func (s *MySQLEditableStore[T, S, F]) Edit(ctx context.Context, storeItem S) error {
 	sqlEdits := strings.TrimSuffix(strings.Join(s.tableColumns, " = ?, "), ", ") 
 
-	sqlctx, _ := context.WithTimeout(ctx, RequestTimeout)
+	sqlctx, cancel := context.WithTimeout(ctx, RequestTimeout)
+	defer cancel()
 	result, err := s.db.ExecContext(
 		sqlctx,
 		fmt.Sprintf(
@@ -243,12 +247,14 @@ func (s *MySQLEditableStore[T, S, F]) Edit(ctx context.Context, storeItem S) err
 	return nil
 }
 
-type MySQLClosableStore[T data.Spreadable, S data.HasIDGetterAndSpreadable, F data.Spreadable] struct {
+type MySQLClosableStore[T data.Spreadable, S data.HasIDGetterAndSpreadable[S], F data.Spreadable] struct {
 	MySQLTimestampedDataStore[T, S, F]
+
 	closeKey string
 }
 func (s *MySQLClosableStore[T, S, F]) Close(ctx context.Context, storeItem S) error {
-	sqlctx, _ := context.WithTimeout(ctx, RequestTimeout)
+	sqlctx, cancel := context.WithTimeout(ctx, RequestTimeout)
+	defer cancel()
 	result, err := s.db.ExecContext(
 		sqlctx,
 		fmt.Sprintf(
@@ -271,8 +277,8 @@ func (s *MySQLClosableStore[T, S, F]) Close(ctx context.Context, storeItem S) er
 	return nil
 }
 
-// Helper function for get methods
-func newSQLIterablePaginatedData[T data.HasIDGetterAndSpreadableAddresss](db *sql.DB, query string, args []any) data.IterablePaginatedData[T] {
+// Helper function for get methods.
+func newSQLIterablePaginatedData[T data.HasIDGetterAndSpreadable[T]](db *sql.DB, query string, args []any) data.IterablePaginatedData[T] {
 	// Define pagination function
 	return data.NewIterablePaginatedData(
 		func(ctx context.Context, lastID *string) ([]T, *string, error) {	
@@ -292,12 +298,13 @@ func newSQLIterablePaginatedData[T data.HasIDGetterAndSpreadableAddresss](db *sq
 			// Scan all results into the next "page" of data to store
 			var items []T
 			for rows.Next() {
-				var item T
-				err := rows.Scan(item.SpreadAddresses()...)
+				var emptyItem T
+				item, addresses := emptyItem.SpreadAddresses()
+				err := rows.Scan(addresses...)
 				if err != nil {
-					return nil, nil, err
+					return nil, nil, fmt.Errorf("error scanning while paginating: %w", err)
 				}
-				items = append(items, item)
+				items = append(items, *item)
 			}
 			err = rows.Err()
 			if err != nil {

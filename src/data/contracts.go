@@ -11,18 +11,18 @@ type Spreadable interface {
 	// Spread elements, in order.
 	Spread() []any
 }
-type SpreadableAddresses interface {
+type SpreadableAddresses[T any] interface {
 	// Spread addresses, in order.
-	SpreadAddresses() []any
+	SpreadAddresses() (*T, []any)
 }
 type SpreadableForExport interface {
 	// Spread elements for export, in order.
 	SpreadForExport() []string
 }
 
-type HasIDGetterAndSpreadable interface {
+type HasIDGetterAndSpreadable[T any] interface {
 	HasIDGetter
 	Spreadable
-	SpreadableAddresses
+	SpreadableAddresses[T]
 	SpreadableForExport
 }

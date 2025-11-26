@@ -1,7 +1,7 @@
 package data
 
 // An event as read from a store. Mutations are not implicitly persisted.
-var _ HasIDGetterAndSpreadable = StoreEvent{}
+var _ HasIDGetterAndSpreadable[StoreEvent] = StoreEvent{}
 type StoreEvent struct {
 	HasID
 	Event
@@ -11,6 +11,7 @@ func (event StoreEvent) GetID() string {
 }
 func (e StoreEvent) Spread() []any {
 	return []any{
+		e.ID,
 		e.RequestDeviceID,
 		e.EventSourceDeviceID,
 		e.ResponseTimestamp,
@@ -19,24 +20,26 @@ func (e StoreEvent) Spread() []any {
 		e.FieldValue,
 	}
 }
-func (e StoreEvent) SpreadAddresses() []any {
-	return []any{
-		&e.RequestDeviceID,
-		&e.EventSourceDeviceID,
-		&e.ResponseTimestamp,
-		&e.EventTimestamp,
-		&e.FieldName,
-		&e.FieldValue,
-	}
-}
 func (e StoreEvent) SpreadForExport() []string {
 	return []string{
+		e.ID,
 		e.RequestDeviceID,
 		e.EventSourceDeviceID,
 		EpochSecondsToExcelDate(e.ResponseTimestamp),
 		EpochSecondsToExcelDate(e.EventTimestamp),
 		e.FieldName,
 		e.FieldValue,
+	}
+}
+func (e StoreEvent) SpreadAddresses() (*StoreEvent, []any) {
+	return &e, []any{
+		&e.ID,
+		&e.RequestDeviceID,
+		&e.EventSourceDeviceID,
+		&e.ResponseTimestamp,
+		&e.EventTimestamp,
+		&e.FieldName,
+		&e.FieldValue,
 	}
 }
 

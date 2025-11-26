@@ -1,7 +1,7 @@
 package data
 
 // A job as read from a store. Mutations are not implicitly persisted.
-var _ HasIDGetterAndSpreadable = StoreJob{}
+var _ HasIDGetterAndSpreadable[StoreJob] = StoreJob{}
 type StoreJob struct {
 	HasID
 	Job
@@ -18,15 +18,6 @@ func (j StoreJob) Spread() []any {
 		j.EndTimestamp,
 	}
 }
-func (j StoreJob) SpreadAddresses() []any {
-	return []any{
-		j.ID,
-		j.ParentID,
-		j.Category,
-		j.StartTimestamp,
-		j.EndTimestamp,
-	}
-}
 func (j StoreJob) SpreadForExport() []string {
 	return []string{
 		j.ID,
@@ -34,6 +25,15 @@ func (j StoreJob) SpreadForExport() []string {
 		j.Category,
 		EpochSecondsToExcelDate(j.StartTimestamp),
 		EpochSecondsToExcelDate(j.EndTimestamp),
+	}
+}
+func (j StoreJob) SpreadAddresses() (*StoreJob, []any) {
+	return &j, []any{
+		j.ID,
+		j.ParentID,
+		j.Category,
+		j.StartTimestamp,
+		j.EndTimestamp,
 	}
 }
 

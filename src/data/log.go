@@ -3,7 +3,7 @@ package data
 import "strconv"
 
 // A log as read from a store. Mutations are not implicitly persisted.
-var _ HasIDGetterAndSpreadable = StoreLog{}
+var _ HasIDGetterAndSpreadable[StoreLog] = StoreLog{}
 type StoreLog struct {
 	HasID
 	Log
@@ -21,16 +21,6 @@ func (l StoreLog) Spread() []any {
 		l.Timestamp,
 	}
 }
-func (l StoreLog) SpreadAddresses() []any {
-	return []any{
-		&l.ID,
-		&l.JobID,
-		&l.Level,
-		&l.StackTrace,
-		&l.Description,
-		&l.Timestamp,
-	}
-}
 func (l StoreLog) SpreadForExport() []string {
 	return []string{
 		l.ID,
@@ -39,6 +29,16 @@ func (l StoreLog) SpreadForExport() []string {
 		l.StackTrace,
 		l.Description,
 		EpochSecondsToExcelDate(l.Timestamp),
+	}
+}
+func (l StoreLog) SpreadAddresses() (*StoreLog, []any) {
+	return &l, []any{
+		&l.ID,
+		&l.JobID,
+		&l.Level,
+		&l.StackTrace,
+		&l.Description,
+		&l.Timestamp,
 	}
 }
 

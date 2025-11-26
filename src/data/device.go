@@ -1,7 +1,7 @@
 package data
 
 // A device as read from a Store. Mutations are not implicitly persisted.
-var _ HasIDGetterAndSpreadable = StoreDevice{}
+var _ HasIDGetterAndSpreadable[StoreDevice] = StoreDevice{}
 type StoreDevice struct {
 	HasID
 	Device
@@ -20,17 +20,6 @@ func (e StoreDevice) Spread() []any {
 		e.Timestamp,
 	}
 }
-func (e StoreDevice) SpreadAddresses() []any {
-	return []any{
-		&e.ID,
-		&e.BrandID,
-		&e.Brand,
-		&e.Kind,
-		&e.Name,
-		&e.Token,
-		&e.Timestamp,
-	}
-}
 func (e StoreDevice) SpreadForExport() []string {
 	return []string{
 		e.ID,
@@ -40,6 +29,17 @@ func (e StoreDevice) SpreadForExport() []string {
 		e.Name,
 		e.Token,
 		EpochSecondsToExcelDate(e.Timestamp),
+	}
+}
+func (e StoreDevice) SpreadAddresses() (*StoreDevice, []any) {
+	return &e, []any{
+		&e.ID,
+		&e.BrandID,
+		&e.Brand,
+		&e.Kind,
+		&e.Name,
+		&e.Token,
+		&e.Timestamp,
 	}
 }
 

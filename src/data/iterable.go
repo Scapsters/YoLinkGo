@@ -7,9 +7,9 @@ import (
 
 const PAGE_SIZE int = 50
 
-type HasIDGetterAndSpreadableAddresss interface {
+type HasIDGetterAndSpreadableAddresss[T any] interface {
 	HasIDGetter
-	SpreadableAddresses
+	SpreadableAddresses[T]
 }
 
 // Typically represents a stream of data from a paginated query response.
@@ -20,7 +20,7 @@ type IterablePaginatedData[T any] struct {
 	currentPositionInPage int
 	currentLastID         *string
 }
-func NewIterablePaginatedData[T HasIDGetterAndSpreadableAddresss](getPage func (ctx context.Context, lastID *string) ([]T, *string, error)) IterablePaginatedData[T] {
+func NewIterablePaginatedData[T HasIDGetterAndSpreadable[T]](getPage func (ctx context.Context, lastID *string) ([]T, *string, error)) IterablePaginatedData[T] {
 	return IterablePaginatedData[T]{getPage: getPage}
 }
 // Provide the next value if it exists, otherwise check for more data before returning nil.
